@@ -346,7 +346,8 @@
     // 音声入力
     const recSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
     let rec = null;
-    let recListening = false;
+    let recListening = false; // ユーザーがONにしているか
+    let micPermissionChecked = false;
 
     function ensureRecognizer() {
       if (!recSupported) return null;
@@ -356,6 +357,11 @@
       rec.lang = 'ja-JP';
       rec.continuous = true;
       rec.interimResults = true;
+      rec.onstart = () => {
+        micStatus.style.display = 'block';
+        micStatus.textContent = '音声入力中…';
+        updateMicUI();
+      };
       rec.onresult = (e) => {
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -373,15 +379,13 @@
         }
       };
       rec.onerror = (e) => {
-        toastShow('音声入力エラー: ' + (e?.error || 'unknown'));
+        const err = e?.error || 'unknown';
+        // 'not-allowed' は権限未許可/拒否、'no-speech' は無音
+        toastShow('音声入力エラー: ' + err);
       };
       rec.onend = () => {
-        // Chromeは短時間でonendになることがあるため、継続希望なら再開
-        if (recListening) {
-          try { rec.start(); } catch {}
-        } else {
-          micStatus.style.display = 'none';
-        }
+        // 自動再開しない（権限ポップアップが消えない問題を避ける）
+        micStatus.style.display = 'none';
         updateMicUI();
       };
       return rec;
@@ -404,18 +408,32 @@
       }
       btn.textContent = recListening ? '🎤 音声入力停止' : '🎤 音声入力開始';
     }
-    function startMic() {
+    async function requestMicPermission() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // 直ちに停止して音声認識に切替
+        stream.getTracks().forEach(t => t.stop());
+        micPermissionChecked = true;
+      } catch (e) {
+        throw e;
+      }
+    }
+
+    async function startMic() {
       if (!recSupported) return alert('このブラウザは音声入力に対応していません');
       if (!rec) ensureRecognizer();
       try {
+        // 先にマイク許可を要求（許可後に SpeechRecognition を開始）
+        if (!micPermissionChecked && navigator.mediaDevices?.getUserMedia) {
+          await requestMicPermission();
+        }
         recListening = true;
         rec.start();
-        micStatus.style.display = 'block';
-        micStatus.textContent = '音声入力中…';
         editor.focus();
       } catch (e) {
         recListening = false;
-        toastShow('音声入力を開始できませんでした');
+        toastShow('音声入力を開始できませんでした。アドレスバーのマイク許可を確認してください。');
       }
       updateMicUI();
     }
@@ -427,14 +445,8 @@
     }
     $('#btnMic').onclick = async () => {
       if (!recSupported) return alert('このブラウザは音声入力に対応していません');
-      if (!recListening) {
-        // 簡単な確認（外部サービス利用の可能性を示す）
-        const ok = confirm('音声入力を有効にしますか？ブラウザの音声認識機能を使用します。');
-        if (!ok) return;
-        startMic();
-      } else {
-        stopMic();
-      }
+      if (!recListening) await startMic();
+      else stopMic();
     };
 
     updateMicUI();
