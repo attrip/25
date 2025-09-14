@@ -357,6 +357,7 @@
       rec.lang = 'ja-JP';
       rec.continuous = true;
       rec.interimResults = true;
+      rec.maxAlternatives = 1;
       rec.onstart = () => {
         micStatus.style.display = 'block';
         micStatus.textContent = '音声入力中…';
@@ -380,11 +381,17 @@
       };
       rec.onerror = (e) => {
         const err = e?.error || 'unknown';
-        // 'not-allowed' は権限未許可/拒否、'no-speech' は無音
+        if (err === 'not-allowed' || err === 'service-not-allowed') {
+          recListening = false;
+        }
+        // 'no-speech' は無音、'network' はネットワーク未到達
         toastShow('音声入力エラー: ' + err);
       };
       rec.onend = () => {
-        // 自動再開しない（権限ポップアップが消えない問題を避ける）
+        // 許可が通っており、ユーザーがONのままなら自動再開
+        if (recListening && micPermissionChecked) {
+          try { rec.start(); return; } catch {}
+        }
         micStatus.style.display = 'none';
         updateMicUI();
       };
