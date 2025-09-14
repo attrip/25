@@ -174,13 +174,16 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite">1ターム完了！お疲れさまでした。</div>
+  <div id="debug" class="toast" style="left:auto; right:12px; transform:none; width: min(92vw, 520px); text-align:left; background: rgba(59,130,246,0.18); color:#dbeafe; display:none"></div>
 
   <script>
     // 設定
     const WORK_MIN = 25;
     const BREAK_MIN = 5;
     // 開発確認を早めに: URLに ?dev=1 で 25秒/5秒 に短縮
-    const DEV = new URLSearchParams(location.search).get('dev') === '1';
+    const qs = new URLSearchParams(location.search);
+    const DEV = qs.get('dev') === '1';
+    const DEBUG = qs.get('debug') === '1';
     const WORK_SEC = DEV ? 25 : WORK_MIN * 60;
     const BREAK_SEC = DEV ? 5 : BREAK_MIN * 60;
 
@@ -204,6 +207,13 @@
     const toast = $('#toast');
     const micStatus = $('#micStatus');
     const micInterim = $('#micInterim');
+    const debugBox = $('#debug');
+    function dbg(msg) {
+      if (!DEBUG) return;
+      debugBox.style.display = 'block';
+      const t = new Date().toLocaleTimeString();
+      debugBox.innerText = `[${t}] ${msg}\n` + debugBox.innerText;
+    }
 
     // 画面切替
     function showScreen(name) {
@@ -360,12 +370,20 @@
       rec.continuous = true;
       rec.interimResults = true;
       rec.maxAlternatives = 1;
+      rec.onaudiostart = () => dbg('onaudiostart');
+      rec.onaudioend = () => dbg('onaudioend');
+      rec.onsoundstart = () => dbg('onsoundstart');
+      rec.onsoundend = () => dbg('onsoundend');
+      rec.onspeechstart = () => dbg('onspeechstart');
+      rec.onspeechend = () => { dbg('onspeechend'); };
       rec.onstart = () => {
+        dbg('onstart');
         micStatus.style.display = 'block';
         micStatus.textContent = '音声入力中…';
         updateMicUI();
       };
       rec.onresult = (e) => {
+        dbg('onresult');
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const res = e.results[i];
@@ -394,15 +412,24 @@
         }
         // 'no-speech' は無音、'network' はネットワーク未到達
         toastShow('音声入力エラー: ' + err);
+        dbg('onerror: ' + err);
       };
+      let restartAttempts = 0;
       rec.onend = () => {
+        dbg('onend');
         // 許可が通っており、ユーザーがONのままなら自動再開
         if (recListening && micPermissionChecked) {
-          try { rec.start(); return; } catch {}
+          // 短いバックオフで再開を試行（最大3回）
+          if (restartAttempts < 3) {
+            restartAttempts++;
+            setTimeout(() => { try { rec.start(); dbg('restart #' + restartAttempts); } catch(e) { dbg('restart failed'); } }, 250 * restartAttempts);
+            return;
+          }
         }
         micStatus.style.display = 'none';
         micInterim.style.display = 'none';
         updateMicUI();
+        restartAttempts = 0;
       };
       return rec;
     }
@@ -442,14 +469,17 @@
       try {
         // 先にマイク許可を要求（許可後に SpeechRecognition を開始）
         if (!micPermissionChecked && navigator.mediaDevices?.getUserMedia) {
+          dbg('requesting mic permission');
           await requestMicPermission();
         }
         recListening = true;
         rec.start();
+        dbg('start called');
         editor.focus();
       } catch (e) {
         recListening = false;
         toastShow('音声入力を開始できませんでした。アドレスバーのマイク許可を確認してください。');
+        dbg('start error');
       }
       updateMicUI();
     }
