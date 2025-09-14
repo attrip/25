@@ -151,7 +151,10 @@
           <button id="btnSave" class="primary">保存</button>
           <button id="btnPause" class="warn">一時停止</button>
           <button id="btnReset" class="danger">リセット</button>
+          <button id="btnMic" title="音声入力">🎤 音声入力開始</button>
         </div>
+        <div class="spacer"></div>
+        <div id="micStatus" class="muted" style="display:none">音声入力中…</div>
       </div>
     </section>
 
@@ -198,6 +201,7 @@
     const listSaved = $('#listSaved');
     const emptySaved = $('#emptySaved');
     const toast = $('#toast');
+    const micStatus = $('#micStatus');
 
     // 画面切替
     function showScreen(name) {
@@ -206,6 +210,7 @@
       if (name === 'home') scrHome.classList.add('active');
       if (name === 'work') scrWork.classList.add('active');
       if (name === 'break') scrBreak.classList.add('active');
+      if (name !== 'work') stopMic(); // 画面遷移時に音声入力を停止
     }
 
     // ユーティリティ
@@ -338,9 +343,104 @@
       refreshList();
     };
 
+    // 音声入力
+    const recSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+    let rec = null;
+    let recListening = false;
+
+    function ensureRecognizer() {
+      if (!recSupported) return null;
+      if (rec) return rec;
+      const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+      rec = new Ctor();
+      rec.lang = 'ja-JP';
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const res = e.results[i];
+          const txt = res[0]?.transcript || '';
+          if (res.isFinal) appendToEditor(txt.trim());
+          else interim += txt;
+        }
+        if (interim) {
+          micStatus.style.display = 'block';
+          micStatus.textContent = '音声入力中… ' + interim.trim();
+        } else if (recListening) {
+          micStatus.style.display = 'block';
+          micStatus.textContent = '音声入力中…';
+        }
+      };
+      rec.onerror = (e) => {
+        toastShow('音声入力エラー: ' + (e?.error || 'unknown'));
+      };
+      rec.onend = () => {
+        // Chromeは短時間でonendになることがあるため、継続希望なら再開
+        if (recListening) {
+          try { rec.start(); } catch {}
+        } else {
+          micStatus.style.display = 'none';
+        }
+        updateMicUI();
+      };
+      return rec;
+    }
+
+    function appendToEditor(text) {
+      if (!text) return;
+      // 末尾に追記（必要ならカーソル位置への挿入に拡張可）
+      const needsSpace = editor.value && !editor.value.endsWith('\n') ? ' ' : '';
+      editor.value = editor.value + needsSpace + text;
+      editor.selectionStart = editor.selectionEnd = editor.value.length;
+    }
+
+    function updateMicUI() {
+      const btn = $('#btnMic');
+      if (!recSupported) {
+        btn.disabled = true;
+        btn.title = 'このブラウザは音声入力に対応していません';
+        return;
+      }
+      btn.textContent = recListening ? '🎤 音声入力停止' : '🎤 音声入力開始';
+    }
+    function startMic() {
+      if (!recSupported) return alert('このブラウザは音声入力に対応していません');
+      if (!rec) ensureRecognizer();
+      try {
+        recListening = true;
+        rec.start();
+        micStatus.style.display = 'block';
+        micStatus.textContent = '音声入力中…';
+        editor.focus();
+      } catch (e) {
+        recListening = false;
+        toastShow('音声入力を開始できませんでした');
+      }
+      updateMicUI();
+    }
+    function stopMic() {
+      if (!rec) { recListening = false; updateMicUI(); return; }
+      try { recListening = false; rec.stop(); } catch {}
+      micStatus.style.display = 'none';
+      updateMicUI();
+    }
+    $('#btnMic').onclick = async () => {
+      if (!recSupported) return alert('このブラウザは音声入力に対応していません');
+      if (!recListening) {
+        // 簡単な確認（外部サービス利用の可能性を示す）
+        const ok = confirm('音声入力を有効にしますか？ブラウザの音声認識機能を使用します。');
+        if (!ok) return;
+        startMic();
+      } else {
+        stopMic();
+      }
+    };
+
+    updateMicUI();
+
     // 初期化
     refreshList();
   </script>
 </body>
 </html>
-
