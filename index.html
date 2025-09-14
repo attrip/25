@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>25分集中ミニアプリ</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --fg: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --warn: #fbbf24;
+      --danger: #ef4444;
+      --card: #111827;
+      --panel: #0b1220;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+      background: radial-gradient(1200px 800px at 20% 10%, #0b1220, #0a0f1a, #090f1a), var(--bg);
+      color: var(--fg);
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 880px;
+      padding: 24px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    h1 { font-size: 20px; margin: 0; color: #e5e7eb; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .spacer { height: 12px; }
+    .timer {
+      font-variant-numeric: tabular-nums;
+      font-size: 56px;
+      letter-spacing: 1px;
+      text-align: center;
+      margin: 8px 0 12px;
+    }
+    .muted { color: var(--muted); }
+    button, .button-like {
+      appearance: none;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(148, 163, 184, 0.08);
+      color: var(--fg);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button.primary { border-color: #22c55e55; background: #22c55e22; }
+    button.warn { border-color: #fbbf2455; background: #fbbf2422; }
+    button.danger { border-color: #ef444455; background: #ef444422; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    textarea {
+      width: 100%;
+      min-height: 44vh;
+      resize: vertical;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: #0b1220;
+      color: var(--fg);
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    ul.list { list-style: none; padding: 0; margin: 0; }
+    ul.list li {
+      padding: 10px 12px;
+      border: 1px solid rgba(148,163,184,0.25);
+      background: rgba(148,163,184,0.06);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .ghost { opacity: 0.7; }
+    .focus-msg {
+      text-align: center;
+      font-weight: 600;
+      letter-spacing: .02em;
+      color: #f5f5f5;
+    }
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(148,163,184,0.35);
+      background: rgba(34,197,94,0.15);
+      color: #dcfce7;
+      display: none;
+      z-index: 1000;
+    }
+    .toast.show { display: block; }
+  </style>
+  <meta name="description" content="25分集中 + 5分休憩を回す、ローカル保存対応のシンプルな集中支援アプリ" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>25分集中ミニアプリ</h1>
+      <div class="row">
+        <button id="btnHome" title="ホームへ戻る">ホーム</button>
+      </div>
+    </header>
+
+    <!-- ホーム画面 -->
+    <section id="screen-home" class="screen active">
+      <div class="card">
+        <div class="row">
+          <button id="btnStart" class="primary">スタート（25分）</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="muted">過去の保存テキスト</div>
+        <ul id="listSaved" class="list"></ul>
+        <div id="emptySaved" class="muted ghost">まだ保存されたテキストはありません。</div>
+      </div>
+    </section>
+
+    <!-- 作業画面 -->
+    <section id="screen-work" class="screen">
+      <div class="card">
+        <div class="timer" id="timerWork">25:00</div>
+        <div class="focus-msg" aria-live="polite">今は書くことだけ</div>
+        <div class="spacer"></div>
+        <textarea id="editor" placeholder="今考えていることを、そのまま書き始めましょう。装飾や整形は後で大丈夫です。"></textarea>
+        <div class="spacer"></div>
+        <div class="row">
+          <button id="btnSave" class="primary">保存</button>
+          <button id="btnPause" class="warn">一時停止</button>
+          <button id="btnReset" class="danger">リセット</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 休憩画面 -->
+    <section id="screen-break" class="screen">
+      <div class="card">
+        <div class="timer" id="timerBreak">05:00</div>
+        <div class="focus-msg muted" aria-live="polite">肩の力を抜いてリラックス</div>
+        <div class="spacer"></div>
+        <div class="row">
+          <button id="btnSkipBreak" class="warn">休憩をスキップ</button>
+          <button id="btnBackHome">ホームへ</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite">1ターム完了！お疲れさまでした。</div>
+
+  <script>
+    // 設定
+    const WORK_MIN = 25;
+    const BREAK_MIN = 5;
+    // 開発確認を早めに: URLに ?dev=1 で 25秒/5秒 に短縮
+    const DEV = new URLSearchParams(location.search).get('dev') === '1';
+    const WORK_SEC = DEV ? 25 : WORK_MIN * 60;
+    const BREAK_SEC = DEV ? 5 : BREAK_MIN * 60;
+
+    // 状態
+    let state = 'home'; // 'home' | 'work' | 'break'
+    let timerId = null;
+    let remaining = 0;
+    let paused = false;
+    let currentEntryId = null; // 編集中のID（新規なら null）
+
+    // 要素取得
+    const $ = (sel) => document.querySelector(sel);
+    const scrHome = $('#screen-home');
+    const scrWork = $('#screen-work');
+    const scrBreak = $('#screen-break');
+    const timerWork = $('#timerWork');
+    const timerBreak = $('#timerBreak');
+    const editor = $('#editor');
+    const listSaved = $('#listSaved');
+    const emptySaved = $('#emptySaved');
+    const toast = $('#toast');
+
+    // 画面切替
+    function showScreen(name) {
+      state = name;
+      for (const el of document.querySelectorAll('.screen')) el.classList.remove('active');
+      if (name === 'home') scrHome.classList.add('active');
+      if (name === 'work') scrWork.classList.add('active');
+      if (name === 'break') scrBreak.classList.add('active');
+    }
+
+    // ユーティリティ
+    function fmt(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, '0');
+      const s = Math.floor(sec % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+    function toastShow(msg, ms = 2500) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), ms);
+    }
+
+    // ストレージ
+    const LS_KEY = 'focus_entries_v1';
+    function loadAll() {
+      try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
+      catch { return []; }
+    }
+    function saveAll(arr) {
+      localStorage.setItem(LS_KEY, JSON.stringify(arr));
+    }
+    function upsertEntry(entry) {
+      const all = loadAll();
+      if (!entry.id) entry.id = `e_${Date.now()}`;
+      const i = all.findIndex(x => x.id === entry.id);
+      if (i >= 0) all[i] = entry; else all.unshift(entry);
+      saveAll(all);
+      return entry.id;
+    }
+    function deleteEntry(id) {
+      const all = loadAll().filter(x => x.id !== id);
+      saveAll(all);
+    }
+    function refreshList() {
+      const all = loadAll();
+      listSaved.innerHTML = '';
+      if (all.length === 0) {
+        emptySaved.style.display = 'block';
+        return;
+      }
+      emptySaved.style.display = 'none';
+      for (const e of all) {
+        const li = document.createElement('li');
+        const left = document.createElement('div');
+        const right = document.createElement('div');
+        const dt = new Date(e.ts || Date.now());
+        left.innerHTML = `<div><strong>${escapeHtml(e.title || '(無題)')}</strong></div><div class="muted">${dt.toLocaleString()}</div>`;
+        const openBtn = document.createElement('button');
+        openBtn.textContent = '開く';
+        openBtn.title = 'エディタに読み込み';
+        openBtn.onclick = () => {
+          editor.value = e.text || '';
+          currentEntryId = e.id;
+          startWork(false); // 読み込みのみ（カウントは開始しない）
+        };
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '削除';
+        delBtn.className = 'danger';
+        delBtn.onclick = () => { if (confirm('削除しますか？')) { deleteEntry(e.id); refreshList(); } };
+        right.className = 'row';
+        right.appendChild(openBtn);
+        right.appendChild(delBtn);
+        li.appendChild(left);
+        li.appendChild(right);
+        listSaved.appendChild(li);
+      }
+    }
+    function escapeHtml(s) {
+      return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+    }
+
+    // タイマー
+    function clearTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
+
+    function startWork(startCountdown = true) {
+      showScreen('work');
+      clearTimer();
+      paused = false;
+      remaining = WORK_SEC;
+      timerWork.textContent = fmt(remaining);
+      if (startCountdown) runCountdown('work');
+    }
+
+    function startBreak() {
+      showScreen('break');
+      clearTimer();
+      paused = false;
+      remaining = BREAK_SEC;
+      timerBreak.textContent = fmt(remaining);
+      runCountdown('break');
+    }
+
+    function runCountdown(kind) {
+      const tick = () => {
+        if (paused) return;
+        remaining -= 1;
+        if (kind === 'work') timerWork.textContent = fmt(Math.max(0, remaining));
+        if (kind === 'break') timerBreak.textContent = fmt(Math.max(0, remaining));
+        if (remaining <= 0) {
+          clearTimer();
+          if (kind === 'work') {
+            startBreak();
+          } else {
+            toastShow('1ターム完了！お疲れさまでした。');
+            showScreen('home');
+          }
+        }
+      };
+      // 1秒毎
+      timerId = setInterval(tick, 1000);
+    }
+
+    // イベント
+    $('#btnHome').onclick = () => { clearTimer(); showScreen('home'); refreshList(); };
+    $('#btnBackHome').onclick = () => { clearTimer(); showScreen('home'); refreshList(); };
+    $('#btnStart').onclick = () => { currentEntryId = null; editor.value = ''; startWork(true); };
+    $('#btnPause').onclick = () => { paused = !paused; $('#btnPause').textContent = paused ? '再開' : '一時停止'; };
+    $('#btnReset').onclick = () => { if (state === 'work') startWork(false); if (state === 'break') startBreak(); };
+    $('#btnSkipBreak').onclick = () => { clearTimer(); toastShow('休憩をスキップしました'); showScreen('home'); };
+
+    $('#btnSave').onclick = () => {
+      const text = editor.value || '';
+      const firstLine = (text.split(/\n/, 1)[0] || '').trim();
+      const title = firstLine || '（無題）';
+      const entry = { id: currentEntryId, title, text, ts: Date.now() };
+      currentEntryId = upsertEntry(entry);
+      toastShow('保存しました');
+      refreshList();
+    };
+
+    // 初期化
+    refreshList();
+  </script>
+</body>
+</html>
+
