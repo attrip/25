@@ -184,6 +184,9 @@
     const qs = new URLSearchParams(location.search);
     const DEV = qs.get('dev') === '1';
     const DEBUG = qs.get('debug') === '1';
+    const IS_FILE = location.protocol === 'file:';
+    const IS_LOCALHOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    const SECURE = location.protocol === 'https:' || IS_LOCALHOST; // getUserMedia は安全なコンテキストが必要
     const WORK_SEC = DEV ? 25 : WORK_MIN * 60;
     const BREAK_SEC = DEV ? 5 : BREAK_MIN * 60;
 
@@ -467,18 +470,32 @@
       if (!recSupported) return alert('このブラウザは音声入力に対応していません');
       if (!rec) ensureRecognizer();
       try {
-        // 先にマイク許可を要求（許可後に SpeechRecognition を開始）
-        if (!micPermissionChecked && navigator.mediaDevices?.getUserMedia) {
-          dbg('requesting mic permission');
-          await requestMicPermission();
-        }
+        // file:// などの非安全コンテキストでは getUserMedia は失敗するためスキップし、先に認識を開始
         recListening = true;
-        rec.start();
-        dbg('start called');
+        try {
+          rec.start();
+          dbg('start called (direct)');
+        } catch (err1) {
+          // 直接開始に失敗した場合のみ、許可が取れる環境なら事前許可を試す
+          if (SECURE && navigator.mediaDevices?.getUserMedia) {
+            dbg('direct start failed; requesting mic permission then retry');
+            await requestMicPermission();
+            rec.start();
+            dbg('start called (after permission)');
+          } else {
+            throw err1;
+          }
+        }
         editor.focus();
       } catch (e) {
         recListening = false;
-        toastShow('音声入力を開始できませんでした。アドレスバーのマイク許可を確認してください。');
+        if (IS_FILE) {
+          toastShow('音声入力を開始できませんでした。ローカルファイルでは動作しない場合があります。localhost か HTTPS でお試しください。');
+        } else if (!SECURE) {
+          toastShow('音声入力は安全な接続(HTTPS/localhost)が必要です。');
+        } else {
+          toastShow('音声入力を開始できませんでした。アドレスバーのマイク許可を確認してください。');
+        }
         dbg('start error');
       }
       updateMicUI();
