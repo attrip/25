@@ -151,7 +151,11 @@
           <button id="btnSave" class="primary">保存</button>
           <button id="btnPause" class="warn">一時停止</button>
           <button id="btnReset" class="danger">リセット</button>
+          <button id="btnMic" title="音声入力">🎤 音声入力開始</button>
         </div>
+        <div class="spacer"></div>
+        <div id="micStatus" class="muted" style="display:none">音声入力中…</div>
+        <div id="micInterim" class="muted" style="display:none"></div>
       </div>
     </section>
 
@@ -170,13 +174,19 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite">1ターム完了！お疲れさまでした。</div>
+  <div id="debug" class="toast" style="left:auto; right:12px; transform:none; width: min(92vw, 520px); text-align:left; background: rgba(59,130,246,0.18); color:#dbeafe; display:none"></div>
 
   <script>
     // 設定
     const WORK_MIN = 25;
     const BREAK_MIN = 5;
     // 開発確認を早めに: URLに ?dev=1 で 25秒/5秒 に短縮
-    const DEV = new URLSearchParams(location.search).get('dev') === '1';
+    const qs = new URLSearchParams(location.search);
+    const DEV = qs.get('dev') === '1';
+    const DEBUG = qs.get('debug') === '1';
+    const IS_FILE = location.protocol === 'file:';
+    const IS_LOCALHOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    const SECURE = location.protocol === 'https:' || IS_LOCALHOST; // getUserMedia は安全なコンテキストが必要
     const WORK_SEC = DEV ? 25 : WORK_MIN * 60;
     const BREAK_SEC = DEV ? 5 : BREAK_MIN * 60;
 
@@ -198,6 +208,15 @@
     const listSaved = $('#listSaved');
     const emptySaved = $('#emptySaved');
     const toast = $('#toast');
+    const micStatus = $('#micStatus');
+    const micInterim = $('#micInterim');
+    const debugBox = $('#debug');
+    function dbg(msg) {
+      if (!DEBUG) return;
+      debugBox.style.display = 'block';
+      const t = new Date().toLocaleTimeString();
+      debugBox.innerText = `[${t}] ${msg}\n` + debugBox.innerText;
+    }
 
     // 画面切替
     function showScreen(name) {
@@ -206,6 +225,7 @@
       if (name === 'home') scrHome.classList.add('active');
       if (name === 'work') scrWork.classList.add('active');
       if (name === 'break') scrBreak.classList.add('active');
+      if (name !== 'work') stopMic(); // 画面遷移時に音声入力を停止
     }
 
     // ユーティリティ
@@ -338,9 +358,165 @@
       refreshList();
     };
 
+    // 音声入力
+    const recSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+    let rec = null;
+    let recListening = false; // ユーザーがONにしているか
+    let micPermissionChecked = false;
+
+    function ensureRecognizer() {
+      if (!recSupported) return null;
+      if (rec) return rec;
+      const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+      rec = new Ctor();
+      rec.lang = 'ja-JP';
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      rec.onaudiostart = () => dbg('onaudiostart');
+      rec.onaudioend = () => dbg('onaudioend');
+      rec.onsoundstart = () => dbg('onsoundstart');
+      rec.onsoundend = () => dbg('onsoundend');
+      rec.onspeechstart = () => dbg('onspeechstart');
+      rec.onspeechend = () => { dbg('onspeechend'); };
+      rec.onstart = () => {
+        dbg('onstart');
+        micStatus.style.display = 'block';
+        micStatus.textContent = '音声入力中…';
+        updateMicUI();
+      };
+      rec.onresult = (e) => {
+        dbg('onresult');
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const res = e.results[i];
+          const txt = res[0]?.transcript || '';
+          if (res.isFinal) appendToEditor(txt.trim());
+          else interim += txt;
+        }
+        // 暫定結果の視覚化
+        interim = (interim || '').trim();
+        if (interim) {
+          micInterim.style.display = 'block';
+          micInterim.textContent = '聞き取り中: ' + interim;
+        } else {
+          micInterim.style.display = 'none';
+        }
+        // ステータス行
+        if (recListening) {
+          micStatus.style.display = 'block';
+          micStatus.textContent = interim ? '音声入力中…' : '音声入力中…';
+        }
+      };
+      rec.onerror = (e) => {
+        const err = e?.error || 'unknown';
+        if (err === 'not-allowed' || err === 'service-not-allowed') {
+          recListening = false;
+        }
+        // 'no-speech' は無音、'network' はネットワーク未到達
+        toastShow('音声入力エラー: ' + err);
+        dbg('onerror: ' + err);
+      };
+      let restartAttempts = 0;
+      rec.onend = () => {
+        dbg('onend');
+        // 許可が通っており、ユーザーがONのままなら自動再開
+        if (recListening && micPermissionChecked) {
+          // 短いバックオフで再開を試行（最大3回）
+          if (restartAttempts < 3) {
+            restartAttempts++;
+            setTimeout(() => { try { rec.start(); dbg('restart #' + restartAttempts); } catch(e) { dbg('restart failed'); } }, 250 * restartAttempts);
+            return;
+          }
+        }
+        micStatus.style.display = 'none';
+        micInterim.style.display = 'none';
+        updateMicUI();
+        restartAttempts = 0;
+      };
+      return rec;
+    }
+
+    function appendToEditor(text) {
+      if (!text) return;
+      // 末尾に追記（必要ならカーソル位置への挿入に拡張可）
+      const needsSpace = editor.value && !editor.value.endsWith('\n') ? ' ' : '';
+      editor.value = editor.value + needsSpace + text;
+      editor.selectionStart = editor.selectionEnd = editor.value.length;
+    }
+
+    function updateMicUI() {
+      const btn = $('#btnMic');
+      if (!recSupported) {
+        btn.disabled = true;
+        btn.title = 'このブラウザは音声入力に対応していません';
+        return;
+      }
+      btn.textContent = recListening ? '🎤 音声入力停止' : '🎤 音声入力開始';
+    }
+    async function requestMicPermission() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // 直ちに停止して音声認識に切替
+        stream.getTracks().forEach(t => t.stop());
+        micPermissionChecked = true;
+      } catch (e) {
+        throw e;
+      }
+    }
+
+    async function startMic() {
+      if (!recSupported) return alert('このブラウザは音声入力に対応していません');
+      if (!rec) ensureRecognizer();
+      try {
+        // file:// などの非安全コンテキストでは getUserMedia は失敗するためスキップし、先に認識を開始
+        recListening = true;
+        try {
+          rec.start();
+          dbg('start called (direct)');
+        } catch (err1) {
+          // 直接開始に失敗した場合のみ、許可が取れる環境なら事前許可を試す
+          if (SECURE && navigator.mediaDevices?.getUserMedia) {
+            dbg('direct start failed; requesting mic permission then retry');
+            await requestMicPermission();
+            rec.start();
+            dbg('start called (after permission)');
+          } else {
+            throw err1;
+          }
+        }
+        editor.focus();
+      } catch (e) {
+        recListening = false;
+        if (IS_FILE) {
+          toastShow('音声入力を開始できませんでした。ローカルファイルでは動作しない場合があります。localhost か HTTPS でお試しください。');
+        } else if (!SECURE) {
+          toastShow('音声入力は安全な接続(HTTPS/localhost)が必要です。');
+        } else {
+          toastShow('音声入力を開始できませんでした。アドレスバーのマイク許可を確認してください。');
+        }
+        dbg('start error');
+      }
+      updateMicUI();
+    }
+    function stopMic() {
+      if (!rec) { recListening = false; updateMicUI(); return; }
+      try { recListening = false; rec.stop(); } catch {}
+      micStatus.style.display = 'none';
+      micInterim.style.display = 'none';
+      updateMicUI();
+    }
+    $('#btnMic').onclick = async () => {
+      if (!recSupported) return alert('このブラウザは音声入力に対応していません');
+      if (!recListening) await startMic();
+      else stopMic();
+    };
+
+    updateMicUI();
+
     // 初期化
     refreshList();
   </script>
 </body>
 </html>
-
