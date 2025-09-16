@@ -207,9 +207,9 @@
     <!-- 作業画面 -->
     <section id="screen-work" class="screen">
       <div class="card">
-        <div class="timer" id="timerWork">25:00</div>
+        <div class="timer" id="timerWork">00:00</div>
         <div class="focus-msg" aria-live="polite">今は書くことだけ</div>
-        <div id="calmMsg" class="muted" aria-live="polite" style="text-align:center; font-size:13px; margin-top:4px;">残り 25:00 — 深呼吸して続けよう</div>
+        <div id="calmMsg" class="muted" aria-live="polite" style="text-align:center; font-size:13px; margin-top:4px;">残り --:-- — 深呼吸して続けよう</div>
         <div class="spacer"></div>
         <textarea id="editor" placeholder="今考えていることを、そのまま書き始めましょう。装飾や整形は後で大丈夫です。"></textarea>
         <div class="spacer"></div>
@@ -306,6 +306,16 @@
       const brand = document.getElementById('brandHome');
       if (brand) brand.textContent = `${workMinutes}分集中ミニアプリ`;
       try { document.title = `${workMinutes}分集中ミニアプリ`; } catch {}
+      // プレビューのタイマー/メッセージも選択中の分数に揃える（作業中は触らない）
+      try {
+        if (typeof state === 'undefined' || state !== 'work') {
+          const previewSec = (DEV ? 25 : workMinutes * 60);
+          const tw = document.getElementById('timerWork');
+          if (tw) tw.textContent = fmt(previewSec);
+          const cm = document.getElementById('calmMsg');
+          if (cm) cm.textContent = `残り ${fmt(previewSec)} — 深呼吸して続けよう`;
+        }
+      } catch {}
     }
     if (mode15Btn) mode15Btn.onclick = () => { workMinutes = 15; try{localStorage.setItem(MODE_KEY,'15');}catch{} updateModeUI(); };
     if (mode25Btn) mode25Btn.onclick = () => { workMinutes = 25; try{localStorage.setItem(MODE_KEY,'25');}catch{} updateModeUI(); };
