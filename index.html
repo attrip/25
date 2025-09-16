@@ -185,6 +185,12 @@
           <button id="btnStart" class="primary">25分を開始</button>
         </div>
         <div class="spacer"></div>
+        <div class="row" id="modeChips">
+          <span class="muted">集中モード:</span>
+          <button id="mode15" class="chip" title="15分モード">15分</button>
+          <button id="mode25" class="chip active" title="25分モード">25分</button>
+        </div>
+        <div class="spacer"></div>
         <div class="row">
           <input id="searchInput" type="search" placeholder="検索（タイトル・本文・#タグ）" style="flex:1; min-width: 240px;">
           <button id="btnStarFilter" title="スターのみ切替">☆ すべて</button>
@@ -203,6 +209,7 @@
       <div class="card">
         <div class="timer" id="timerWork">25:00</div>
         <div class="focus-msg" aria-live="polite">今は書くことだけ</div>
+        <div id="calmMsg" class="muted" aria-live="polite" style="text-align:center; font-size:13px; margin-top:4px;">残り 25:00 — 深呼吸して続けよう</div>
         <div class="spacer"></div>
         <textarea id="editor" placeholder="今考えていることを、そのまま書き始めましょう。装飾や整形は後で大丈夫です。"></textarea>
         <div class="spacer"></div>
@@ -262,11 +269,11 @@
     </div>
   </div>
 
-  <!-- 達成ダイアログ（小さな花火演出付き） -->
+  <!-- 達成ダイアログ（静かなメッセージ） -->
   <div id="celebrate" class="modal" role="dialog" aria-modal="true" aria-label="達成おめでとう" style="display:none;">
     <div class="modal-panel" style="position:relative; overflow:hidden; text-align:center;">
-      <div style="font-size:20px; font-weight:700; margin:6px 0;">お疲れさま！</div>
-      <div class="muted" style="margin-bottom:8px;">25分、よく頑張りました。</div>
+      <div id="celebrateTitle" style="font-size:20px; font-weight:700; margin:6px 0;">よく頑張った！</div>
+      <div id="celebrateBody" class="muted" style="margin-bottom:8px;">集中、お疲れさま。</div>
       <button id="celebrateClose">閉じる</button>
     </div>
   </div>
@@ -284,12 +291,25 @@
 
   <script>
     // 設定
-    const WORK_MIN = 25;
+    // 集中モード（15 / 25分）
+    const MODE_KEY = 'focus_mode_minutes_v1';
+    const mode15Btn = document.getElementById('mode15');
+    const mode25Btn = document.getElementById('mode25');
+    let workMinutes = (() => { try { return parseInt(localStorage.getItem(MODE_KEY)||'25',10)||25; } catch { return 25; } })();
+    function updateModeUI() {
+      if (mode15Btn && mode25Btn) {
+        mode15Btn.classList.toggle('active', workMinutes === 15);
+        mode25Btn.classList.toggle('active', workMinutes === 25);
+      }
+      const btn = document.getElementById('btnStart');
+      if (btn) btn.textContent = `${workMinutes}分を開始`;
+    }
+    if (mode15Btn) mode15Btn.onclick = () => { workMinutes = 15; try{localStorage.setItem(MODE_KEY,'15');}catch{} updateModeUI(); };
+    if (mode25Btn) mode25Btn.onclick = () => { workMinutes = 25; try{localStorage.setItem(MODE_KEY,'25');}catch{} updateModeUI(); };
     const BREAK_MIN = 5;
     // 開発確認を早めに: URLに ?dev=1 で 25秒/5秒 に短縮
     const qs = new URLSearchParams(location.search);
     const DEV = qs.get('dev') === '1';
-    const WORK_SEC = DEV ? 25 : WORK_MIN * 60;
     const BREAK_SEC = DEV ? 5 : BREAK_MIN * 60;
 
     // 状態
@@ -692,8 +712,11 @@
       showScreen('work');
       clearTimer();
       paused = false;
-      remaining = WORK_SEC;
+      const total = DEV ? 25 : workMinutes * 60;
+      remaining = total;
       timerWork.textContent = fmt(remaining);
+      const cm = document.getElementById('calmMsg');
+      if (cm) cm.textContent = `残り ${fmt(remaining)} — 深呼吸して続けよう`;
       updateFocusFromEditor();
       attemptAutoMicStart();
       if (startCountdown) runCountdown('work');
@@ -708,11 +731,22 @@
       runCountdown('break');
     }
 
+    let lastCalmMin = null;
+    const calmPhrases = ['深呼吸して続けよう','一歩ずついこう','そのまま書いてOK','手を止めずに','良いペース'];
+    function updateCalm(remainingSec) {
+      const cm = document.getElementById('calmMsg');
+      if (!cm) return;
+      const mm = Math.floor(Math.max(0, remainingSec)/60);
+      if (lastCalmMin === mm) return;
+      lastCalmMin = mm;
+      const pick = calmPhrases[mm % calmPhrases.length];
+      cm.textContent = `残り ${fmt(remainingSec)} — ${pick}`;
+    }
     function runCountdown(kind) {
       const tick = () => {
         if (paused) return;
         remaining -= 1;
-        if (kind === 'work') timerWork.textContent = fmt(Math.max(0, remaining));
+        if (kind === 'work') { const r = Math.max(0, remaining); timerWork.textContent = fmt(r); updateCalm(r); }
         if (kind === 'break') timerBreak.textContent = fmt(Math.max(0, remaining));
         if (remaining <= 0) {
           clearTimer();
@@ -720,7 +754,7 @@
             showCelebrate();
             startBreak();
           } else {
-            toastShow('1ターム完了！お疲れさまでした。');
+            toastShow('よく頑張った！');
             showScreen('home');
           }
         }
@@ -765,7 +799,8 @@
           if (prev && typeof prev.durationSec === 'number') prevDur = prev.durationSec;
         } catch {}
       }
-      const entry = { id: currentEntryId, title, text, ts: Date.now(), durationSec: Math.max(prevDur, elapsed), chars: text.replace(/\n/g,'').length };
+      const total = DEV ? 25 : workMinutes * 60;
+      const entry = { id: currentEntryId, title, text, ts: Date.now(), durationSec: Math.max(prevDur, Math.max(0, total - remaining)), chars: text.replace(/\n/g,'').length };
       // タグ抽出を加え、スターは維持
       entry.tags = extractTags(text);
       currentEntryId = upsertEntryMerged(entry);
@@ -925,11 +960,8 @@
     // 入力監視: 無操作でコーチ表示
     editor.addEventListener('input', () => { lastInputAt = Date.now(); hideCoach(); updateFocusFromEditor(); });
     setInterval(() => {
-      if (state !== 'work' || paused) return;
-      const now = Date.now();
-      if ((now - lastInputAt) > IDLE_MS && (now - coachShownAt) > COACH_COOLDOWN_MS) {
-        showCoach();
-      }
+      // 集中中はアニメーションによるヒント表示を行わない
+      return;
     }, 1000);
 
     $('#btnMic').onclick = () => { if (!srOn) startMic(); else stopMic(); };
@@ -976,47 +1008,18 @@
       }
     });
 
-    // 達成ダイアログ（小花火）
+    // 達成ダイアログ（静かな表示）
     const celebrate = document.querySelector('#celebrate');
     const celebrateClose = document.querySelector('#celebrateClose');
-    function cleanupSparks() {
-      if (!celebrate) return;
-      for (const el of Array.from(celebrate.querySelectorAll('.spark'))) el.remove();
-    }
     function showCelebrate() {
       if (!celebrate) return;
       celebrate.style.display = 'flex';
-      const panel = celebrate.querySelector('.modal-panel');
-      if (!panel) return;
-      cleanupSparks();
-      const rect = panel.getBoundingClientRect();
-      const cx = rect.width/2, cy = rect.height/2;
-      for (let i=0;i<26;i++) {
-        const sp = document.createElement('span');
-        sp.className = 'spark';
-        const ang = Math.random()*Math.PI*2;
-        const r = 40 + Math.random()*160;
-        const dx = Math.cos(ang)*r;
-        const dy = Math.sin(ang)*r;
-        sp.style.left = `${cx}px`;
-        sp.style.top = `${cy}px`;
-        sp.style.position = 'absolute';
-        sp.style.width = sp.style.height = `${4+Math.random()*4}px`;
-        sp.style.borderRadius = '999px';
-        sp.style.background = 'rgba(96,165,250,0.9)';
-        sp.style.transform = 'translate(-50%,-50%) scale(0.4)';
-        sp.style.opacity = '1';
-        sp.style.transition = 'transform 900ms ease, opacity 1000ms ease';
-        panel.appendChild(sp);
-        requestAnimationFrame(()=>{
-          sp.style.transform = `translate(${dx-50}%, ${dy-50}%) scale(1)`;
-          sp.style.opacity = '0';
-        });
-        setTimeout(()=>sp.remove(), 1200);
-      }
-      setTimeout(()=>{ celebrate.style.display='none'; cleanupSparks(); }, 1600);
+      const title = document.getElementById('celebrateTitle');
+      const body = document.getElementById('celebrateBody');
+      if (title) title.textContent = 'よく頑張った！';
+      if (body) body.textContent = `${workMinutes}分の集中、お疲れさま。`;
     }
-    if (celebrateClose) celebrateClose.onclick = () => { celebrate.style.display = 'none'; cleanupSparks(); };
+    if (celebrateClose) celebrateClose.onclick = () => { celebrate.style.display = 'none'; };
 
     // 検索/フィルタ
     if (searchInput) searchInput.addEventListener('input', () => refreshList2());
@@ -1027,6 +1030,7 @@
     };
 
     // 初期化
+    updateModeUI();
     refreshList2();
   </script>
 </body>
