@@ -210,6 +210,7 @@
         <div class="timer" id="timerWork">00:00</div>
         <div class="focus-msg" aria-live="polite">今は書くことだけ</div>
         <div id="calmMsg" class="muted" aria-live="polite" style="text-align:center; font-size:13px; margin-top:4px;">残り --:-- — 深呼吸して続けよう</div>
+        <div id="metrics" class="muted" aria-live="polite" style="text-align:center; font-size:12px; margin-top:4px;">文字数 0 | WPM 0</div>
         <div class="spacer"></div>
         <textarea id="editor" placeholder="今考えていることを、そのまま書き始めましょう。装飾や整形は後で大丈夫です。"></textarea>
         <div class="spacer"></div>
@@ -347,9 +348,15 @@
     const toast = $('#toast');
     const micStatus = $('#micStatus');
     const micInterim = $('#micInterim');
+    const calmMsg = document.getElementById('calmMsg');
+    const metricsEl = document.getElementById('metrics');
     const coachEl = $('#coach');
     const coachTips = ['誰に？', 'いつまでに？', '何を？', 'なぜ今？', '成功条件は？'];
     let lastInputAt = Date.now();
+    let sessionStartAt = 0;
+    let baselineChars = 0;
+    let focusFoldTimer = null;
+    const SESS_KEY = 'focus_sessions_v1';
     let coachRotateId = null;
     let coachShownAt = 0;
     const IDLE_MS = 12000; // 12s 無操作で表示
@@ -516,6 +523,32 @@
           if (finished && first) focusMsg.textContent = first;
           else focusMsg.textContent = '今は書くことだけ';
         }
+      } catch {}
+    }
+    function currentChars() {
+      try { return (editor.value || '').replace(/\n/g,'').length; } catch { return 0; }
+    }
+    function typedChars() {
+      return Math.max(0, currentChars() - baselineChars);
+    }
+    function updateMetrics(nowTs = Date.now()) {
+      if (!metricsEl) return;
+      const tc = typedChars();
+      const elapsedSec = Math.max(1, Math.floor((nowTs - (sessionStartAt||nowTs)) / 1000));
+      const wpm = Math.max(0, Math.round(tc / (elapsedSec/60)));
+      metricsEl.textContent = `文字数 ${tc} | WPM ${wpm}`;
+    }
+    function countTasksInText(s) {
+      if (!s) return 0;
+      const re = /^(?:\s*[-・・・]|\s*\d+[\.)]|\s*・)\s+/gm;
+      const m = s.match(re);
+      return m ? m.length : 0;
+    }
+    function saveSessionSummary(summary) {
+      try {
+        const all = JSON.parse(localStorage.getItem(SESS_KEY) || '[]');
+        all.unshift(summary);
+        localStorage.setItem(SESS_KEY, JSON.stringify(all));
       } catch {}
     }
     function pad2(n) { return n.toString().padStart(2,'0'); }
@@ -730,6 +763,16 @@
       timerWork.textContent = fmt(remaining);
       const cm = document.getElementById('calmMsg');
       if (cm) cm.textContent = `残り ${fmt(remaining)} — 深呼吸して続けよう`;
+      // metrics baseline
+      sessionStartAt = Date.now();
+      baselineChars = currentChars();
+      updateMetrics(sessionStartAt);
+      // Focus heading fold after 30s（自動折りたたみ）
+      try { if (focusFoldTimer) clearTimeout(focusFoldTimer); } catch {}
+      focusFoldTimer = setTimeout(() => {
+        const fm = document.querySelector('#screen-work .focus-msg');
+        if (fm) fm.style.display = 'none';
+      }, 30000);
       updateFocusFromEditor();
       attemptAutoMicStart();
       if (startCountdown) runCountdown('work');
@@ -759,11 +802,17 @@
       const tick = () => {
         if (paused) return;
         remaining -= 1;
-        if (kind === 'work') { const r = Math.max(0, remaining); timerWork.textContent = fmt(r); updateCalm(r); }
+        if (kind === 'work') { const r = Math.max(0, remaining); timerWork.textContent = fmt(r); updateCalm(r); updateMetrics(); }
         if (kind === 'break') timerBreak.textContent = fmt(Math.max(0, remaining));
         if (remaining <= 0) {
           clearTimer();
           if (kind === 'work') {
+            // compute session summary
+            const elapsedSec = Math.max(1, Math.floor((Date.now() - (sessionStartAt||Date.now()))/1000));
+            const chars = typedChars();
+            const avgWpm = Math.max(0, Math.round(chars / (elapsedSec/60)));
+            const tasks = countTasksInText(editor.value || '');
+            saveSessionSummary({ ts: Date.now(), minutes: workMinutes, secs: elapsedSec, chars, wpm: avgWpm, tasks });
             showCelebrate();
             startBreak();
           } else {
@@ -1030,7 +1079,13 @@
       const title = document.getElementById('celebrateTitle');
       const body = document.getElementById('celebrateBody');
       if (title) title.textContent = 'よく頑張った！';
-      if (body) body.textContent = `${workMinutes}分の集中、お疲れさま。`;
+      if (body) {
+        const elapsedSec = Math.max(1, Math.floor((Date.now() - (sessionStartAt||Date.now()))/1000));
+        const chars = typedChars();
+        const avgWpm = Math.max(0, Math.round(chars / (elapsedSec/60)));
+        const tasks = countTasksInText(editor.value || '');
+        body.textContent = `${workMinutes}分の集中 / 合計 ${chars} 文字・平均WPM ${avgWpm}・タスク ${tasks}`;
+      }
     }
     if (celebrateClose) celebrateClose.onclick = () => { celebrate.style.display = 'none'; };
 
