@@ -848,11 +848,6 @@
       const text = editor.value || '';
       const firstLine = (text.split(/\n/, 1)[0] || '').trim();
       const title = firstLine || '（無題）';
-      // 経過時間（作業中のみ）
-      let elapsed = 0;
-      if (state === 'work') {
-        elapsed = Math.max(0, (WORK_SEC - remaining));
-      }
       // 既存とマージ（より長い方を保持）
       let prevDur = 0;
       if (currentEntryId) {
