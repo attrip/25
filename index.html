@@ -536,7 +536,7 @@
       const tc = typedChars();
       const elapsedSec = Math.max(1, Math.floor((nowTs - (sessionStartAt||nowTs)) / 1000));
       const wpm = Math.max(0, Math.round(tc / (elapsedSec/60)));
-      metricsEl.textContent = `文字数 ${tc} | WPM ${wpm}`;
+      metricsEl.textContent = `文字数 ${tc} | 文字/分 ${wpm}`;
     }
     function countTasksInText(s) {
       if (!s) return 0;
@@ -769,10 +769,9 @@
       updateMetrics(sessionStartAt);
       // Focus heading fold after 30s（自動折りたたみ）
       try { if (focusFoldTimer) clearTimeout(focusFoldTimer); } catch {}
-      focusFoldTimer = setTimeout(() => {
-        const fm = document.querySelector('#screen-work .focus-msg');
-        if (fm) fm.style.display = 'none';
-      }, 30000);
+      const fm = document.querySelector('#screen-work .focus-msg');
+      if (fm) fm.style.display = ''; // セッション開始時に再表示
+      focusFoldTimer = setTimeout(() => { if (fm) fm.style.display = 'none'; }, 30000);
       updateFocusFromEditor();
       attemptAutoMicStart();
       if (startCountdown) runCountdown('work');
@@ -813,8 +812,9 @@
             const avgWpm = Math.max(0, Math.round(chars / (elapsedSec/60)));
             const tasks = countTasksInText(editor.value || '');
             saveSessionSummary({ ts: Date.now(), minutes: workMinutes, secs: elapsedSec, chars, wpm: avgWpm, tasks });
+            // 区切りのダイアログを先に表示し、閉じたら休憩へ
+            celebrateNext = () => { startBreak(); };
             showCelebrate();
-            startBreak();
           } else {
             toastShow('よく頑張った！');
             showScreen('home');
@@ -1068,6 +1068,7 @@
     // 達成ダイアログ（静かな表示）
     const celebrate = document.querySelector('#celebrate');
     const celebrateClose = document.querySelector('#celebrateClose');
+    let celebrateNext = null;
     function showCelebrate() {
       if (!celebrate) return;
       celebrate.style.display = 'flex';
@@ -1079,10 +1080,13 @@
         const chars = typedChars();
         const avgWpm = Math.max(0, Math.round(chars / (elapsedSec/60)));
         const tasks = countTasksInText(editor.value || '');
-        body.textContent = `${workMinutes}分の集中 / 合計 ${chars} 文字・平均WPM ${avgWpm}・タスク ${tasks}`;
+        body.textContent = `${workMinutes}分の集中 / 合計 ${chars} 文字・平均 文字/分 ${avgWpm}・タスク ${tasks}`;
       }
     }
-    if (celebrateClose) celebrateClose.onclick = () => { celebrate.style.display = 'none'; };
+    if (celebrateClose) celebrateClose.onclick = () => {
+      celebrate.style.display = 'none';
+      if (typeof celebrateNext === 'function') { const fn = celebrateNext; celebrateNext = null; fn(); }
+    };
 
     // 検索/フィルタ
     if (searchInput) searchInput.addEventListener('input', () => refreshList2());
