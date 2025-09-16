@@ -303,6 +303,9 @@
       }
       const btn = document.getElementById('btnStart');
       if (btn) btn.textContent = `${workMinutes}分を開始`;
+      const brand = document.getElementById('brandHome');
+      if (brand) brand.textContent = `${workMinutes}分集中ミニアプリ`;
+      try { document.title = `${workMinutes}分集中ミニアプリ`; } catch {}
     }
     if (mode15Btn) mode15Btn.onclick = () => { workMinutes = 15; try{localStorage.setItem(MODE_KEY,'15');}catch{} updateModeUI(); };
     if (mode25Btn) mode25Btn.onclick = () => { workMinutes = 25; try{localStorage.setItem(MODE_KEY,'25');}catch{} updateModeUI(); };
