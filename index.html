@@ -80,8 +80,23 @@
     textarea:focus { outline: none; border-color: rgba(96,165,250,.55); box-shadow: 0 0 0 3px rgba(96,165,250,.22); background: #0d1526; }
     textarea::placeholder { color: rgba(148, 163, 184, 0.7); }
     ul.list { list-style: none; padding: 0; margin: 0; }
-    ul.list li { padding: 10px 12px; border: 1px solid rgba(148,163,184,0.22); background: rgba(148,163,184,0.04); border-radius: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; transition: border-color .15s ease, background .15s ease; }
+    ul.list li { padding: 10px 12px; border: 1px solid rgba(148,163,184,0.22); background: rgba(148,163,184,0.04); border-radius: 12px; margin-bottom: 8px; transition: border-color .15s ease, background .15s ease; }
     ul.list li:hover { border-color: rgba(96,165,250,.35); background: rgba(148,163,184,0.06); }
+    /* Entry card layout */
+    ul.list li.entry-card { position: relative; display: block; padding: 16px; padding-right: 120px; }
+    .title-btn { appearance: none; background: transparent; border: none; color: inherit; padding: 0; margin: 0; font: inherit; font-weight: 700; cursor: pointer; }
+    .title-btn:hover { text-decoration: none; color: var(--accent); }
+    .title-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); border-radius: 6px; }
+    .entry-title { font-weight: 700; margin-bottom: 4px; }
+    .entry-meta { font-size: 12px; margin-bottom: 6px; }
+    .entry-preview { font-size: 13px; color: var(--muted); }
+    .entry-actions { position: absolute; top: 8px; right: 16px; display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+    .icon-btn { appearance: none; border: none; background: transparent; color: var(--muted); padding: 4px 8px; border-radius: 8px; cursor: pointer; }
+    .icon-btn:hover { background: rgba(148,163,184,0.12); }
+    .star-btn { position: static; font-size: 18px; }
+    .star-btn.is-starred { color: #fbbf24; }
+    .del-btn { position: static; border: 1px solid rgba(239,68,68,0.45); background: rgba(239,68,68,0.12); color: #fecaca; padding: 6px 8px; border-radius: 8px; }
+    .del-btn:hover { background: rgba(239,68,68,0.18); }
     .ghost { opacity: 0.7; }
     .focus-msg {
       text-align: center;
@@ -89,8 +104,29 @@
       letter-spacing: .02em;
       color: #f5f5f5;
     }
-    .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(148,163,184,0.35); background: rgba(96,165,250,0.12); color: var(--fg); display: none; z-index: 1000; }
-    .toast.show { display: block; }
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%) translateY(8px) scale(0.98);
+      opacity: 0;
+      visibility: hidden;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(148,163,184,0.35);
+      background: rgba(96,165,250,0.12);
+      color: var(--fg);
+      z-index: 1000;
+      pointer-events: none;
+      transition: opacity .22s ease, transform .22s ease, visibility 0s linear .22s;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+      visibility: visible;
+      transition-delay: 0s, 0s, 0s;
+    }
 
     /* Gentle coach tip */
     .coach { position: absolute; right: 16px; bottom: 16px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); background: rgba(148,163,184,0.06); font-size: 13px; letter-spacing: .01em; pointer-events: none; }
@@ -99,6 +135,9 @@
     input[type="search"] { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.06); color: var(--fg); padding: 10px 12px; border-radius: 10px; font-size: 14px; }
     input[type="search"]::placeholder { color: rgba(148,163,184,0.6); }
     .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    #chatRow { display: flex; gap: 12px; align-items: center; flex-wrap: nowrap; width: 100%; }
+    #chatSend { flex: none; }
+    #chatInput { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 12px 14px; border-radius: 12px; font-size: 20px; line-height: 1.8; flex: 1 1 auto; min-width: 0; }
     .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); color: var(--fg); background: rgba(148,163,184,0.06); border-radius: 999px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
     .chip.active { border-color: rgba(96,165,250,.5); background: rgba(96,165,250,.12); }
 
@@ -173,7 +212,6 @@
       </div>
       <div class="row">
         <button id="btnTheme" title="ダーク/ライト切替" aria-label="テーマ切替">🌗 テーマ</button>
-        <button id="btnReadMode" title="読みやすさモードで表示" aria-label="読みやすさモード">👁 読む</button>
       </div>
     </header>
 
@@ -214,6 +252,11 @@
         <div class="spacer"></div>
         <textarea id="editor" placeholder="今考えていることを、そのまま書き始めましょう。装飾や整形は後で大丈夫です。"></textarea>
         <div class="spacer"></div>
+        <div class="row" id="chatRow">
+          <input id="chatInput" type="text" placeholder="ここに1行入力してEnterで追記" />
+          <button id="chatSend" class="primary">追加</button>
+        </div>
+        <div class="spacer"></div>
         <div class="row">
           <button id="btnSave" class="primary">保存</button>
           <button id="btnPause" class="warn">一時停止</button>
@@ -230,6 +273,7 @@
             <button id="micOverlayStart" class="primary" style="min-width:200px; font-size:16px;">🎤 音声入力を開始</button>
             <div style="margin-top:8px; display:flex; gap:8px; align-items:center; justify-content:center;">
               <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="micAuto" /> 次回から自動で開始</label>
+              <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="micPersist" /> 自動再開を維持</label>
             </div>
             <div class="mic-hint muted">ブラウザの許可ポップアップで「常に許可」にすると次回スムーズです</div>
           </div>
@@ -282,10 +326,10 @@
   <footer class="footer" role="contentinfo">
     <div class="muted">外部AIツール</div>
     <div class="links">
-      <a href="https://chat.openai.com/" target="_blank" rel="noopener" title="ChatGPT を開く">ChatGPT</a>
-      <a href="https://gemini.google.com/" target="_blank" rel="noopener" title="Gemini を開く">Gemini</a>
+      <a href="https://chat.openai.com/" target="_blank" rel="noopener noreferrer" title="ChatGPT を開く">ChatGPT</a>
+      <a href="https://gemini.google.com/" target="_blank" rel="noopener noreferrer" title="Gemini を開く">Gemini</a>
     </div>
-    <div class="copy muted">© <a href="https://attrip.jp" target="_blank" rel="noopener" title="attrip">attrip</a></div>
+    <div class="copy muted">© <a href="https://attrip.jp" target="_blank" rel="noopener noreferrer" title="attrip">attrip</a></div>
   </footer>
 
   <div id="toast" class="toast" role="status" aria-live="polite">1ターム完了！お疲れさまでした。</div>
@@ -341,6 +385,8 @@
     const timerWork = $('#timerWork');
     const timerBreak = $('#timerBreak');
     const editor = $('#editor');
+    const chatInput = document.getElementById('chatInput');
+    const chatSend = document.getElementById('chatSend');
     const focusMsg = document.querySelector('#screen-work .focus-msg');
     const purposeInput = $('#purposeInput');
     const listSaved = $('#listSaved');
@@ -365,9 +411,11 @@
     const micOverlay = $('#micOverlay');
     const micOverlayStart = $('#micOverlayStart');
     const micAuto = $('#micAuto');
+    const micPersist = $('#micPersist');
     const MIC_OK_KEY = 'focus_mic_ok';
     const MIC_AUTO_KEY = 'focus_mic_auto';
 
+    const MIC_PERSIST_KEY = 'focus_mic_persist';
     function hideCoach() {
       if (coachEl) coachEl.style.display = 'none';
       if (coachRotateId) { clearInterval(coachRotateId); coachRotateId = null; }
@@ -417,7 +465,7 @@
         out += escapeHtmlStrict(s.slice(last, m.index));
         const url = m[0];
         const safeUrl = escapeHtmlStrict(url);
-        out += `<a href="${safeUrl}" target="_blank" rel="noopener">${safeUrl}</a>`;
+        out += `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>`;
         last = re.lastIndex;
       }
       out += escapeHtmlStrict(s.slice(last));
@@ -460,9 +508,39 @@
       }
       applyReadPrefs();
       readModal.classList.add('show');
+      try { const first = readModal.querySelector('#readClose, button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'); if (first && first.focus) first.focus(); } catch {}
+      if (typeof enableReadModalTrap === 'function') enableReadModalTrap();
     }
     function closeReadModal() { readModal.classList.remove('show'); }
 
+    let readModalTrapHandler = null;
+    function enableReadModalTrap() {
+      disableReadModalTrap();
+      readModalTrapHandler = function(e) {
+        if (!readModal.classList.contains('show')) return;
+        if (e.key !== 'Tab') return;
+        const focusables = Array.from(readModal.querySelectorAll('a[href], area[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey) {
+          if (active === first || !readModal.contains(active)) { e.preventDefault(); last.focus(); }
+        } else {
+          if (active === last || !readModal.contains(active)) { e.preventDefault(); first.focus(); }
+        }
+      };
+      document.addEventListener('keydown', readModalTrapHandler, true);
+    }
+    function disableReadModalTrap() {
+      if (readModalTrapHandler) { document.removeEventListener('keydown', readModalTrapHandler, true); readModalTrapHandler = null; }
+    }
+    (function(){
+      const btn = document.getElementById('readClose');
+      if (!btn) return;
+      const old = btn.onclick;
+      btn.onclick = function() { if (typeof old === 'function') old(); disableReadModalTrap(); };
+    })();
     // テーマ切替
     const THEME_KEY = 'focus_theme_v1_theme';
     let currentTheme = (() => {
@@ -510,10 +588,12 @@
       const s = Math.floor(sec % 60).toString().padStart(2, '0');
       return `${m}:${s}`;
     }
+    let toastTimer = null;
     function toastShow(msg, ms = 2500) {
       toast.textContent = msg;
       toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), ms);
+      if (toastTimer) { try { clearTimeout(toastTimer); } catch {} }
+      toastTimer = setTimeout(() => { toast.classList.remove('show'); toastTimer = null; }, ms);
     }
     function updateFocusFromEditor(force = false) {
       try {
@@ -530,6 +610,25 @@
     }
     function typedChars() {
       return Math.max(0, currentChars() - baselineChars);
+    }
+    
+    // チャット入力 → 本文追記
+    let chatComposing = false;
+    function appendChatLine(text) {
+      const t = String(text || '').trim();
+      if (!t) return;
+      try {
+        let v = editor.value || '';
+        if (v && !v.endsWith('\n')) v += '\n';
+        editor.value = v + t + '\n';
+        try { editor.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+        try { requestAnimationFrame(() => { try { editor.scrollTop = editor.scrollHeight; } catch {} }); } catch {}
+
+        lastInputAt = Date.now();
+        hideCoach();
+        updateFocusFromEditor(true);
+        updateMetrics(Date.now());
+      } catch {}
     }
     function updateMetrics(nowTs = Date.now()) {
       if (!metricsEl) return;
@@ -660,50 +759,47 @@
       emptySaved.style.display = 'none';
       for (const e of filtered) {
         const li = document.createElement('li');
-        const left = document.createElement('div');
-        const right = document.createElement('div');
-        const dt = new Date(e.ts || Date.now());
-        const titleEl = document.createElement('div');
-        titleEl.innerHTML = `<strong>${escapeHtml(e.title || '(無題)')}</strong>`;
-        const metaEl = document.createElement('div'); metaEl.className = 'muted';
-        const dTxt = fmtYmdHm(e.ts || Date.now());
-        const durStr = (e.durationSec != null) ? fmtJp(e.durationSec) : '';
-        const chars = (typeof e.chars === 'number') ? e.chars : (e.text ? e.text.replace(/\n/g,'').length : 0);
-        metaEl.textContent = `${dTxt} | ${durStr || '0分0秒'} | 文字数 ${chars}`;
-        const snipEl = document.createElement('div'); snipEl.className = 'muted'; snipEl.style.fontSize = '13px'; snipEl.textContent = snippet(e.text || '', 140);
-        left.appendChild(titleEl); left.appendChild(metaEl); left.appendChild(snipEl);
-        if ((e.tags || []).length) {
-          const tw = document.createElement('div');
-          for (const t of e.tags) { const chip = document.createElement('span'); chip.className = 'chip'; chip.style.fontSize = '11px'; chip.textContent = `#${t}`; chip.onclick = () => { filterTag = t; refreshList2(); }; tw.appendChild(chip); }
-          left.appendChild(tw);
-        }
-        const openBtn = document.createElement('button');
-        openBtn.textContent = '開く';
-        openBtn.title = 'エディタに読み込み';
-        openBtn.onclick = () => {
+        li.className = 'entry-card';
+        // Title / meta / preview
+        const titleBtn = document.createElement('button');
+        titleBtn.className = 'entry-title title-btn';
+        titleBtn.textContent = e.title || '(無題)';
+        titleBtn.title = '開く';
+        titleBtn.onclick = () => {
           editor.value = e.text || '';
           currentEntryId = e.id;
           startWork(true);
         };
+        const metaEl = document.createElement('div'); metaEl.className = 'entry-meta muted';
+        const dTxt = fmtYmdHm(e.ts || Date.now());
+        const durStr = (e.durationSec != null) ? fmtJp(e.durationSec) : '';
+        const chars = (typeof e.chars === 'number') ? e.chars : (e.text ? e.text.replace(/\n/g,'').length : 0);
+        metaEl.textContent = `${dTxt} | ${durStr || '0分0秒'} | 文字数 ${chars}`;
+        const snipEl = document.createElement('div'); snipEl.className = 'entry-preview'; snipEl.textContent = snippet(e.text || '', 140);
+        li.appendChild(titleBtn); li.appendChild(metaEl); li.appendChild(snipEl);
+        if ((e.tags || []).length) {
+          const tw = document.createElement('div');
+          for (const t of e.tags) { const chip = document.createElement('span'); chip.className = 'chip'; chip.style.fontSize = '11px'; chip.textContent = `#${t}`; chip.onclick = () => { filterTag = t; refreshList2(); }; tw.appendChild(chip); }
+          li.appendChild(tw);
+        }
+        // Actions (top-right)
+        const actions = document.createElement('div');
+        actions.className = 'entry-actions';
+        // star toggle
         const starBtn = document.createElement('button');
+        starBtn.className = 'icon-btn star-btn' + (e.star ? ' is-starred' : '');
         starBtn.textContent = e.star ? '★' : '☆';
         starBtn.title = e.star ? 'スターを外す' : 'スターを付ける';
         starBtn.onclick = () => { e.star = !e.star; upsertEntryMerged(e); refreshList2(); };
-        const readBtn = document.createElement('button');
-        readBtn.textContent = '読む';
-        readBtn.title = '読みやすさモードで表示';
-        readBtn.onclick = () => { openReadModalFromText(e.text || ''); };
+        // delete
         const delBtn = document.createElement('button');
-        delBtn.textContent = '削除';
-        delBtn.className = 'danger';
+        delBtn.className = 'icon-btn del-btn';
+        delBtn.textContent = '🗑';
+        delBtn.title = '削除';
         delBtn.onclick = () => { if (confirm('削除しますか？')) { deleteEntry(e.id); refreshList2(); } };
-        right.className = 'row';
-        right.appendChild(starBtn);
-        right.appendChild(readBtn);
-        right.appendChild(openBtn);
-        right.appendChild(delBtn);
-        li.appendChild(left);
-        li.appendChild(right);
+        actions.appendChild(starBtn);
+        actions.appendChild(delBtn);
+        li.appendChild(actions);
         listSaved.appendChild(li);
       }
     }
@@ -717,33 +813,27 @@
       emptySaved.style.display = 'none';
       for (const e of all) {
         const li = document.createElement('li');
-        const left = document.createElement('div');
-        const right = document.createElement('div');
-        const dt = new Date(e.ts || Date.now());
+        li.className = 'entry-card';
+        // Title / meta / preview
+        const titleBtn = document.createElement('button'); titleBtn.className = 'entry-title title-btn';
+        titleBtn.textContent = e.title || '(無題)';
+        titleBtn.title = '開く';
+        titleBtn.onclick = () => { editor.value = e.text || ''; currentEntryId = e.id; startWork(true); };
+        const metaEl = document.createElement('div'); metaEl.className = 'entry-meta muted';
         const chars2 = (typeof e.chars === 'number') ? e.chars : (e.text ? e.text.replace(/\n/g,'').length : 0);
-        left.innerHTML = `<div><strong>${escapeHtml(e.title || '(無題)')}</strong></div><div class="muted">${fmtYmdHm(e.ts || Date.now())} | ${fmtJp(e.durationSec||0)} | 文字数 ${chars2}</div>`;
-        const openBtn = document.createElement('button');
-        openBtn.textContent = '開く';
-        openBtn.title = 'エディタに読み込み';
-        openBtn.onclick = () => {
-          editor.value = e.text || '';
-          currentEntryId = e.id;
-          startWork(true);
-        };
-        const readBtn = document.createElement('button');
-        readBtn.textContent = '読む';
-        readBtn.title = '読みやすさモードで表示';
-        readBtn.onclick = () => { openReadModalFromText(e.text || ''); };
-        const delBtn = document.createElement('button');
-        delBtn.textContent = '削除';
-        delBtn.className = 'danger';
+        metaEl.textContent = `${fmtYmdHm(e.ts || Date.now())} | ${fmtJp(e.durationSec||0)} | 文字数 ${chars2}`;
+        const snipEl = document.createElement('div'); snipEl.className = 'entry-preview'; snipEl.textContent = snippet(e.text || '', 140);
+        li.appendChild(titleBtn); li.appendChild(metaEl); li.appendChild(snipEl);
+        // Actions (top-right)
+        const actions = document.createElement('div'); actions.className = 'entry-actions';
+        const starBtn = document.createElement('button'); starBtn.className = 'icon-btn star-btn' + (e.star ? ' is-starred' : '');
+        starBtn.textContent = e.star ? '★' : '☆'; starBtn.title = e.star ? 'スターを外す' : 'スターを付ける';
+        starBtn.onclick = () => { e.star = !e.star; upsertEntryMerged(e); refreshList(); };
+        const delBtn = document.createElement('button'); delBtn.className = 'icon-btn del-btn'; delBtn.textContent = '🗑'; delBtn.title = '削除';
         delBtn.onclick = () => { if (confirm('削除しますか？')) { deleteEntry(e.id); refreshList(); } };
-        right.className = 'row';
-        right.appendChild(readBtn);
-        right.appendChild(openBtn);
-        right.appendChild(delBtn);
-        li.appendChild(left);
-        li.appendChild(right);
+        actions.appendChild(starBtn);
+        actions.appendChild(delBtn);
+        li.appendChild(actions);
         listSaved.appendChild(li);
       }
     }
@@ -904,7 +994,7 @@
     let srOn = false;
 
     class SimpleSR {
-      constructor({ lang = 'ja-JP', onFinal, onInterim, onStart, onEnd, onError }) {
+      constructor({ lang = 'ja-JP', onFinal, onInterim, onStart, onEnd, onError, autoRestart = true }) {
         this.lang = lang;
         this.onFinal = onFinal;
         this.onInterim = onInterim;
@@ -912,6 +1002,8 @@
         this.onEnd = onEnd;
         this.onError = onError;
         this.rec = null;
+        this.autoRestart = autoRestart;
+        this._stopping = false;
       }
       start() {
         if (!SR) throw new Error('unsupported');
@@ -933,18 +1025,25 @@
           this.onInterim && this.onInterim(interim.trim());
         };
         r.onerror = (e) => {
-          this.onError && this.onError(e && e.error ? e.error : 'unknown');
+          const er = (e && e.error) ? e.error : 'unknown';
+          if (['not-allowed','service-not-allowed','audio-capture','network'].includes(er)) { this._stopping = true; }
+          this.onError && this.onError(er);
         };
         r.onend = () => {
-          // do not auto-restart: keep behavior predictable
+          const shouldRestart = this.autoRestart && !this._stopping;
           this.onEnd && this.onEnd();
           this.rec = null;
+          if (shouldRestart) {
+            setTimeout(() => { try { this.start(); } catch (e) {} }, 250);
+          }
+          this._stopping = false;
         };
         this.rec = r;
         r.start();
       }
       stop() {
         if (!this.rec) return;
+        this._stopping = true;
         try { this.rec.abort(); } catch {}
         this.rec = null;
       }
@@ -997,12 +1096,13 @@
     function startMic() {
       if (!srSupported) return alert('このブラウザは音声入力に対応していません');
       if (!sr) sr = new SimpleSR({
+        autoRestart: (function(){ try { const v = localStorage.getItem(MIC_PERSIST_KEY); return (v === null || v === '1'); } catch { return true; } })(),
         lang: 'ja-JP',
         onStart: () => { srOn = true; try{ localStorage.setItem(MIC_OK_KEY,'1'); }catch{} micStatus.style.display = 'block'; micStatus.textContent = '音声入力中…'; updateMicUI(); },
-        onEnd: () => { srOn = false; micStatus.style.display = 'none'; micInterim.style.display = 'none'; updateMicUI(); },
+        onEnd: () => { },
         onInterim: (tmp) => { if (tmp) { micInterim.style.display = 'block'; micInterim.textContent = '聞き取り中: ' + tmp; } else { micInterim.style.display = 'none'; } },
         onFinal: (txt) => appendToEditor(normalizeDictation(txt)),
-        onError: (err) => { srOn = false; updateMicUI(); toastShow('音声入力エラー: ' + err); }
+        onError: (err) => { const fatal = ['not-allowed','service-not-allowed','audio-capture','network']; if (err === 'no-speech' || err === 'aborted') return; if (fatal.includes(err)) { try { stopMic(); } catch {} srOn = false; updateMicUI(); toastShow('マイクエラー: ' + err); return; } srOn = false; updateMicUI(); toastShow('音声入力エラー: ' + err); }
       });
       try { sr.start(); editor.focus(); } catch (e) { toastShow('音声入力を開始できませんでした'); }
       updateMicUI();
@@ -1016,16 +1116,26 @@
     }
     // 入力監視: 無操作でコーチ表示
     editor.addEventListener('input', () => { lastInputAt = Date.now(); hideCoach(); updateFocusFromEditor(); });
-    setInterval(() => {
-      // 集中中はアニメーションによるヒント表示を行わない
-      return;
-    }, 1000);
 
     $('#btnMic').onclick = () => { if (!srOn) startMic(); else stopMic(); };
+
+    if (chatInput) {
+      chatInput.addEventListener('compositionstart', () => { chatComposing = true; });
+      chatInput.addEventListener('compositionend', () => { chatComposing = false; });
+      chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !chatComposing) {
+          e.preventDefault();
+          appendChatLine(chatInput.value);
+          chatInput.value = '';
+          try { chatInput.focus(); } catch {}
+        }
+      });
+    }
+    if (chatSend) chatSend.onclick = () => { appendChatLine(chatInput && chatInput.value); if (chatInput) { chatInput.value = ''; try { chatInput.focus(); } catch {} } };
     updateMicUI();
 
     // Mic quick-start helpers
-    function showMicOverlay() { if (micOverlay) micOverlay.style.display = 'flex'; }
+    function showMicOverlay() { if (micOverlay) micOverlay.style.display = 'flex'; try { if (micAuto) micAuto.checked = (localStorage.getItem(MIC_AUTO_KEY) === '1'); if (micPersist) { const v = localStorage.getItem(MIC_PERSIST_KEY); micPersist.checked = (v === null || v === '1'); } } catch {} }
     function hideMicOverlay() { if (micOverlay) micOverlay.style.display = 'none'; }
     async function ensureMicPermission() {
       try {
@@ -1047,12 +1157,13 @@
     if (micOverlayStart) micOverlayStart.onclick = async () => {
       const granted = await ensureMicPermission();
       if (!granted) { toastShow('マイクの許可が必要です'); return; }
-      if (micAuto && micAuto.checked) { try { localStorage.setItem(MIC_AUTO_KEY,'1'); } catch {} }
+      if (micAuto) { try { localStorage.setItem(MIC_AUTO_KEY, micAuto.checked ? '1' : '0'); } catch {} }
+      if (micPersist) { try { localStorage.setItem(MIC_PERSIST_KEY, micPersist.checked ? '1' : '0'); } catch {} }
       hideMicOverlay();
       startMic();
     };
-    // 入力や他操作でオーバーレイは邪魔しない
     editor.addEventListener('focus', hideMicOverlay);
+    if (chatInput) { chatInput.addEventListener('focus', hideMicOverlay); chatInput.addEventListener('input', hideMicOverlay); }
     editor.addEventListener('input', hideMicOverlay);
 
     // 快速トグル: キーボード M で音声入力トグル
