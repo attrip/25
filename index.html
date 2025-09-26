@@ -68,6 +68,7 @@
     .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     .spacer { height: 12px; }
     .timer { font-variant-numeric: tabular-nums; font-size: 60px; letter-spacing: .02em; text-align: center; margin: 8px 0 12px; font-weight: 700; color: var(--fg); }
+    #saveStatus { font-variant-numeric: tabular-nums; }
     .muted { color: var(--muted); }
     button, .button-like { appearance: none; border: 1px solid rgba(148, 163, 184, 0.28); background: rgba(148, 163, 184, 0.06); color: var(--fg); padding: 10px 14px; border-radius: 12px; font-size: 14px; cursor: pointer; transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
     button:hover { background: rgba(148, 163, 184, 0.10); }
@@ -194,6 +195,41 @@
     html[data-theme="light"] .focus-msg { color: #0f172a; }
     html[data-theme="light"] .toast { background: rgba(96,165,250,0.12); color: var(--fg); border-color: rgba(96,165,250,0.28); }
 
+    /* Fullscreen mode */
+    body.body-fullscreen .container {
+      max-width: 100%;
+      height: 100%;
+      padding: 0;
+    }
+    body.body-fullscreen header,
+    body.body-fullscreen footer,
+    body.body-fullscreen #screen-home,
+    body.body-fullscreen #screen-break,
+    body.body-fullscreen #screen-work .row,
+    body.body-fullscreen #screen-work .timer,
+    body.body-fullscreen #screen-work .focus-msg,
+    body.body-fullscreen #screen-work .muted,
+    body.body-fullscreen #screen-work .spacer,
+    body.body-fullscreen #micStatus,
+    body.body-fullscreen #micInterim,
+    body.body-fullscreen #coach,
+    body.body-fullscreen #micOverlay {
+      display: none !important;
+    }
+    body.body-fullscreen #screen-work,
+    body.body-fullscreen #screen-work .card {
+      height: 100%;
+      padding: 0;
+      border: none;
+      border-radius: 0;
+    }
+    body.body-fullscreen #editor {
+      height: 100vh;
+      border-radius: 0;
+      border: none;
+      font-size: 20px; /* Increase font size in fullscreen */
+    }
+
     /* Reduced motion respect */
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   </style>
@@ -225,6 +261,7 @@
         <div class="spacer"></div>
         <div class="row" id="modeChips">
           <span class="muted">集中モード:</span>
+          <button id="mode5" class="chip" title="5分モード">5分</button>
           <button id="mode15" class="chip" title="15分モード">15分</button>
           <button id="mode25" class="chip active" title="25分モード">25分</button>
         </div>
@@ -262,6 +299,8 @@
           <button id="btnPause" class="warn">一時停止</button>
           <button id="btnReset" class="danger">リセット</button>
           <button id="btnMic" title="音声入力">🎤 音声入力開始</button>
+          <button id="btnFullscreen" title="集中モード切替">集中モード</button>
+          <span id="saveStatus" class="muted" style="margin-left: auto;"></span>
         </div>
         <div class="spacer"></div>
         <div id="micStatus" class="muted" style="display:none">音声入力中…</div>
@@ -336,13 +375,15 @@
 
   <script>
     // 設定
-    // 集中モード（15 / 25分）
+    // 集中モード（5 / 15 / 25分）
     const MODE_KEY = 'focus_mode_minutes_v1';
+    const mode5Btn = document.getElementById('mode5');
     const mode15Btn = document.getElementById('mode15');
     const mode25Btn = document.getElementById('mode25');
     let workMinutes = (() => { try { return parseInt(localStorage.getItem(MODE_KEY)||'25',10)||25; } catch { return 25; } })();
     function updateModeUI() {
-      if (mode15Btn && mode25Btn) {
+      if (mode5Btn && mode15Btn && mode25Btn) {
+        mode5Btn.classList.toggle('active', workMinutes === 5);
         mode15Btn.classList.toggle('active', workMinutes === 15);
         mode25Btn.classList.toggle('active', workMinutes === 25);
       }
@@ -362,6 +403,7 @@
         }
       } catch {}
     }
+    if (mode5Btn) mode5Btn.onclick = () => { workMinutes = 5; try{localStorage.setItem(MODE_KEY,'5');}catch{} updateModeUI(); };
     if (mode15Btn) mode15Btn.onclick = () => { workMinutes = 15; try{localStorage.setItem(MODE_KEY,'15');}catch{} updateModeUI(); };
     if (mode25Btn) mode25Btn.onclick = () => { workMinutes = 25; try{localStorage.setItem(MODE_KEY,'25');}catch{} updateModeUI(); };
     const BREAK_MIN = 5;
@@ -376,6 +418,7 @@
     let remaining = 0;
     let paused = false;
     let currentEntryId = null; // 編集中のID（新規なら null）
+    let debounceSaveTimer = null;
 
     // 要素取得
     const $ = (sel) => document.querySelector(sel);
@@ -392,6 +435,7 @@
     const listSaved = $('#listSaved');
     const emptySaved = $('#emptySaved');
     const toast = $('#toast');
+    const saveStatusEl = $('#saveStatus');
     const micStatus = $('#micStatus');
     const micInterim = $('#micInterim');
     const calmMsg = document.getElementById('calmMsg');
@@ -863,7 +907,6 @@
       if (fm) fm.style.display = ''; // セッション開始時に再表示
       focusFoldTimer = setTimeout(() => { if (fm) fm.style.display = 'none'; }, 30000);
       updateFocusFromEditor();
-      attemptAutoMicStart();
       if (startCountdown) runCountdown('work');
     }
 
@@ -877,16 +920,37 @@
     }
 
     let lastCalmMin = null;
+    let lastCalmPhrase = '深呼吸して続けよう';
     const calmPhrases = ['深呼吸して続けよう','一歩ずついこう','そのまま書いてOK','手を止めずに','良いペース'];
     function updateCalm(remainingSec) {
       const cm = document.getElementById('calmMsg');
       if (!cm) return;
       const mm = Math.floor(Math.max(0, remainingSec)/60);
-      if (lastCalmMin === mm) return;
-      lastCalmMin = mm;
-      const pick = calmPhrases[mm % calmPhrases.length];
-      cm.textContent = `残り ${fmt(remainingSec)} — ${pick}`;
+      if (lastCalmMin !== mm) {
+        lastCalmMin = mm;
+        lastCalmPhrase = calmPhrases[mm % calmPhrases.length];
+      }
+      cm.textContent = `残り ${fmt(remainingSec)} — ${lastCalmPhrase}`;
     }
+
+    function playBeep() {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4 pitch
+        gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.5); // Play for 0.5 seconds
+      } catch (e) {
+        console.error('Could not play beep sound', e);
+      }
+    }
+
+
     function runCountdown(kind) {
       const tick = () => {
         if (paused) return;
@@ -895,7 +959,9 @@
         if (kind === 'break') timerBreak.textContent = fmt(Math.max(0, remaining));
         if (remaining <= 0) {
           clearTimer();
+          playBeep();
           if (kind === 'work') {
+            saveWork(true); // Auto-save here
             // compute session summary
             const elapsedSec = Math.max(1, Math.floor((Date.now() - (sessionStartAt||Date.now()))/1000));
             const chars = typedChars();
@@ -915,27 +981,23 @@
       timerId = setInterval(tick, 1000);
     }
 
-    // イベント
-    const btnHomeEl = $('#btnHome');
-    if (btnHomeEl) btnHomeEl.onclick = () => { clearTimer(); showScreen('home'); refreshList2(); };
-    const brandHome = document.querySelector('#brandHome');
-    if (brandHome) brandHome.onclick = (e) => { e.preventDefault(); clearTimer(); showScreen('home'); refreshList2(); };
-    $('#btnBackHome').onclick = () => { clearTimer(); showScreen('home'); refreshList2(); };
-    $('#btnStart').onclick = () => {
-      currentEntryId = null;
-      const goal = (purposeInput && purposeInput.value.trim()) || '';
-      editor.value = goal ? (goal + "\n\n") : '';
-      // 先頭行（目的）をそのままタイトル候補にも使える
-      startWork(true);
-      editor.focus();
-      editor.selectionStart = editor.selectionEnd = editor.value.length;
-    };
-    $('#btnPause').onclick = () => { paused = !paused; $('#btnPause').textContent = paused ? '再開' : '一時停止'; };
-    $('#btnReset').onclick = () => { if (state === 'work') startWork(false); if (state === 'break') startBreak(); };
-    $('#btnSkipBreak').onclick = () => { clearTimer(); toastShow('休憩をスキップしました'); showScreen('home'); };
+    function updateSaveStatus() {
+      if (!saveStatusEl) return;
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const day = now.getDate().toString().padStart(2, '0');
+      const hours = now.getHours().toString().padStart(2, '0');
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      const seconds = now.getSeconds().toString().padStart(2, '0');
+      const dateTimeString = `${year}年${month}月${day}日 ${hours}時${minutes}分${seconds}秒`;
+      saveStatusEl.textContent = `保存済: ${dateTimeString}`;
+      saveStatusEl.style.opacity = '0.6';
+    }
 
-    $('#btnSave').onclick = () => {
+    function saveWork(isAuto = false) {
       const text = editor.value || '';
+      if (!text) return; // Don't save if empty
       const firstLine = (text.split(/\n/, 1)[0] || '').trim();
       const title = firstLine || '（無題）';
       // 既存とマージ（より長い方を保持）
@@ -951,9 +1013,45 @@
       // タグ抽出を加え、スターは維持
       entry.tags = extractTags(text);
       currentEntryId = upsertEntryMerged(entry);
-      toastShow('保存しました');
+      if (!isAuto) {
+        toastShow('保存しました');
+      }
       refreshList2();
-    };
+      updateSaveStatus();
+    }
+
+    // イベント
+    const btnHomeEl = $('#btnHome');
+    if (btnHomeEl) btnHomeEl.onclick = () => { clearTimer(); showScreen('home'); refreshList2(); };
+    const brandHome = document.querySelector('#brandHome');
+    if (brandHome) brandHome.onclick = (e) => { e.preventDefault(); clearTimer(); showScreen('home'); refreshList2(); };
+    $('#btnBackHome').onclick = () => { clearTimer(); showScreen('home'); refreshList2(); };
+
+    function startNewSession() {
+      currentEntryId = null;
+      const goal = (purposeInput && purposeInput.value.trim()) || '';
+      editor.value = goal ? (goal + "\n\n") : '';
+      // 先頭行（目的）をそのままタイトル候補にも使える
+      startWork(true);
+      editor.focus();
+      editor.selectionStart = editor.selectionEnd = editor.value.length;
+    }
+
+    $('#btnStart').onclick = startNewSession;
+
+    if (purposeInput) {
+      purposeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          startNewSession();
+        }
+      });
+    }
+    $('#btnPause').onclick = () => { paused = !paused; $('#btnPause').textContent = paused ? '再開' : '一時停止'; };
+    $('#btnReset').onclick = () => { if (state === 'work') startWork(false); if (state === 'break') startBreak(); };
+    $('#btnSkipBreak').onclick = () => { clearTimer(); toastShow('休憩をスキップしました'); showScreen('home'); };
+
+    $('#btnSave').onclick = () => saveWork(false);
 
     // 読みやすさモード: ヘッダーのボタン
     const btnReadMode = $('#btnReadMode');
@@ -1114,8 +1212,19 @@
       micInterim.style.display = 'none';
       updateMicUI();
     }
-    // 入力監視: 無操作でコーチ表示
-    editor.addEventListener('input', () => { lastInputAt = Date.now(); hideCoach(); updateFocusFromEditor(); });
+    // 入力監視: 無操作でコーチ表示 & 自動保存
+    editor.addEventListener('input', () => {
+      lastInputAt = Date.now();
+      hideCoach();
+      updateFocusFromEditor();
+
+      if (debounceSaveTimer) {
+        clearTimeout(debounceSaveTimer);
+      }
+      debounceSaveTimer = setTimeout(() => {
+        saveWork(true);
+      }, 3000);
+    });
 
     $('#btnMic').onclick = () => { if (!srOn) startMic(); else stopMic(); };
 
@@ -1206,6 +1315,30 @@
       btnStarFilter.textContent = filterStarOnly ? '★ スターのみ' : '☆ すべて';
       refreshList2();
     };
+
+    // Fullscreen mode
+    const btnFullscreen = document.getElementById('btnFullscreen');
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+        });
+        document.body.classList.add('body-fullscreen');
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+        document.body.classList.remove('body-fullscreen');
+      }
+    }
+    if (btnFullscreen) {
+      btnFullscreen.onclick = toggleFullscreen;
+    }
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) {
+        document.body.classList.remove('body-fullscreen');
+      }
+    });
 
     // 初期化
     updateModeUI();
