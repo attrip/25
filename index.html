@@ -266,6 +266,18 @@
           <button id="mode25" class="chip active" title="25分モード">25分</button>
         </div>
         <div class="spacer"></div>
+        <div class="row" style="align-items:flex-start; gap: 10px;">
+          <span class="muted" style="margin-top: 8px;">お知らせ:</span>
+          <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="oneMinAlert" /> 1分前に音声でお知らせ</label>
+        </div>
+        <div class="row" style="margin-top: 6px;">
+          <input id="oneMinMsgFocus" type="text" placeholder="集中: 残り1分です。あと少し集中しましょう。" style="flex:1; min-width:240px;" />
+        </div>
+        <div class="row" style="margin-top: 6px;">
+          <input id="oneMinMsgBreak" type="text" placeholder="休憩: 休憩はあと1分で終わります。" style="flex:1; min-width:240px;" />
+        </div>
+        <div class="muted" style="font-size:12px; margin-top:6px;">テスト: URLに <code>?alerttest=1</code> を付けると閾値が短くなります（動作確認用）。</div>
+        <div class="spacer"></div>
         <div class="row">
           <input id="searchInput" type="search" placeholder="検索（タイトル・本文・#タグ）" style="flex:1; min-width: 240px;">
           <button id="btnStarFilter" title="スターのみ切替">☆ すべて</button>
@@ -411,6 +423,16 @@
     const qs = new URLSearchParams(location.search);
     const DEV = qs.get('dev') === '1';
     const BREAK_SEC = DEV ? 5 : BREAK_MIN * 60;
+    // アラート関連（設定＆しきい値）
+    const ALERT_TEST = qs.get('alerttest') === '1';
+    const ONE_MIN_ALERT_THRESHOLD = ALERT_TEST ? 5 : 60; // 隠しテストモードで短縮
+    const ONE_MIN_ALERT_KEY = 'focus_one_min_alert_enabled_v1';
+    const ONE_MIN_ALERT_MSG_FOCUS_KEY = 'focus_one_min_alert_msg_focus_v1';
+    const ONE_MIN_ALERT_MSG_BREAK_KEY = 'focus_one_min_alert_msg_break_v1';
+
+    let oneMinuteAlertEnabled = (() => { try { const v = localStorage.getItem(ONE_MIN_ALERT_KEY); return v == null ? true : v === '1'; } catch { return true; } })();
+    let oneMinuteAlertMsgFocus = (() => { try { return localStorage.getItem(ONE_MIN_ALERT_MSG_FOCUS_KEY) || '残り1分です。あと少し集中しましょう。'; } catch { return '残り1分です。あと少し集中しましょう。'; } })();
+    let oneMinuteAlertMsgBreak = (() => { try { return localStorage.getItem(ONE_MIN_ALERT_MSG_BREAK_KEY) || '休憩はあと1分で終わります。'; } catch { return '休憩はあと1分で終わります。'; } })();
 
     // 状態
     let state = 'home'; // 'home' | 'work' | 'break'
@@ -430,6 +452,31 @@
     const scrBreak = $('#screen-break');
     const timerWork = $('#timerWork');
     const timerBreak = $('#timerBreak');
+    // アラート設定UI
+    const oneMinAlertEl = $('#oneMinAlert');
+    const oneMinMsgFocusEl = $('#oneMinMsgFocus');
+    const oneMinMsgBreakEl = $('#oneMinMsgBreak');
+
+    // 設定UIの初期化
+    try {
+      if (oneMinAlertEl) oneMinAlertEl.checked = !!oneMinuteAlertEnabled;
+      if (oneMinMsgFocusEl) oneMinMsgFocusEl.value = oneMinuteAlertMsgFocus || '';
+      if (oneMinMsgBreakEl) oneMinMsgBreakEl.value = oneMinuteAlertMsgBreak || '';
+    } catch {}
+
+    // 設定UIのイベント
+    if (oneMinAlertEl) oneMinAlertEl.onchange = () => {
+      oneMinuteAlertEnabled = !!oneMinAlertEl.checked;
+      try { localStorage.setItem(ONE_MIN_ALERT_KEY, oneMinuteAlertEnabled ? '1' : '0'); } catch {}
+    };
+    if (oneMinMsgFocusEl) oneMinMsgFocusEl.onchange = () => {
+      oneMinuteAlertMsgFocus = (oneMinMsgFocusEl.value || '').trim() || '残り1分です。あと少し集中しましょう。';
+      try { localStorage.setItem(ONE_MIN_ALERT_MSG_FOCUS_KEY, oneMinuteAlertMsgFocus); } catch {}
+    };
+    if (oneMinMsgBreakEl) oneMinMsgBreakEl.onchange = () => {
+      oneMinuteAlertMsgBreak = (oneMinMsgBreakEl.value || '').trim() || '休憩はあと1分で終わります。';
+      try { localStorage.setItem(ONE_MIN_ALERT_MSG_BREAK_KEY, oneMinuteAlertMsgBreak); } catch {}
+    };
     const editor = $('#editor');
     const chatInput = document.getElementById('chatInput');
     const chatSend = document.getElementById('chatSend');
@@ -985,13 +1032,12 @@
         // 終了1分前の音声アナウンス（セッションあたり一度だけ）
         try {
           const r = Math.max(0, remaining);
-          if (!oneMinuteAnnounced && sessionTotalSec >= 60 && r === 60) {
+          const threshold = ONE_MIN_ALERT_THRESHOLD;
+          if (oneMinuteAlertEnabled && !oneMinuteAnnounced && sessionTotalSec >= threshold && r === threshold) {
             oneMinuteAnnounced = true;
-            if (kind === 'work') {
-              speak('残り1分です。あと少し集中しましょう。');
-            } else {
-              speak('休憩はあと1分で終わります。');
-            }
+            const msg = (kind === 'work') ? (oneMinuteAlertMsgFocus || '残り1分です。あと少し集中しましょう。')
+                                          : (oneMinuteAlertMsgBreak || '休憩はあと1分で終わります。');
+            speak(msg);
           }
         } catch (e) { /* noop */ }
 
