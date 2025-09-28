@@ -1093,7 +1093,8 @@
     function startNewSession() {
       currentEntryId = null;
       const goal = (purposeInput && purposeInput.value.trim()) || '';
-      editor.value = goal ? (goal + "\n\n") : '';
+      // 目的は1行目にのみ配置し、空行は挟まない（入力開始位置は2行目）
+      editor.value = goal ? (goal + "\n") : '';
       // 先頭行（目的）をそのままタイトル候補にも使える
       startWork(true);
       editor.focus();
