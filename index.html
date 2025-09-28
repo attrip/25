@@ -1093,12 +1093,14 @@
     function startNewSession() {
       currentEntryId = null;
       const goal = (purposeInput && purposeInput.value.trim()) || '';
-      // 目的は1行目にのみ配置し、空行は挟まない（入力開始位置は2行目）
-      editor.value = goal ? (goal + "\n") : '';
+      // 目的は1行目のみ（改行を自動で追加しない）
+      editor.value = goal ? goal : '';
       // 先頭行（目的）をそのままタイトル候補にも使える
       startWork(true);
       editor.focus();
-      editor.selectionStart = editor.selectionEnd = editor.value.length;
+      editor.selectionStart = editor.selectionEnd = editor.value.length; // 入力は1行目の続き
+      // フォーカスメッセージは目的の1行目を表示（改行が無くても表示する）
+      updateFocusFromEditor(true);
     }
 
     $('#btnStart').onclick = startNewSession;
