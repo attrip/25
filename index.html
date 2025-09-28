@@ -1093,14 +1093,31 @@
     function startNewSession() {
       currentEntryId = null;
       const goal = (purposeInput && purposeInput.value.trim()) || '';
-      // 目的は1行目、入力開始位置は3行目（空行を1つ挟む）
-      editor.value = goal ? (goal + "\n\n") : '';
-      // 先頭行（目的）をそのままタイトル候補にも使える
+      const baseText = goal ? (goal + "\n\n") : '';
+      editor.value = baseText;
+      try { if (purposeInput) purposeInput.blur(); } catch {}
       startWork(true);
       editor.focus();
       editor.selectionStart = editor.selectionEnd = editor.value.length; // 入力は3行目から
-      // フォーカスメッセージは目的の1行目を表示
       updateFocusFromEditor(true);
+      if (goal) {
+        const cleanupStart = Date.now();
+        setTimeout(() => {
+          try {
+            const current = editor.value || '';
+            if (!current.startsWith(baseText)) return;
+            const tail = current.slice(baseText.length);
+            if (!tail) return;
+            if (tail.includes('\n')) return;
+            if (tail.length > 2) return;
+            if (!goal.endsWith(tail)) return;
+            if (Date.now() - cleanupStart > 200) return;
+            editor.value = baseText;
+            editor.selectionStart = editor.selectionEnd = baseText.length;
+            updateFocusFromEditor(true);
+          } catch {}
+        }, 0);
+      }
     }
 
     $('#btnStart').onclick = startNewSession;
