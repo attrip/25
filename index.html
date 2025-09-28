@@ -416,6 +416,9 @@
     let state = 'home'; // 'home' | 'work' | 'break'
     let timerId = null;
     let remaining = 0;
+    // 1分前アナウンス用のセッション情報
+    let sessionTotalSec = 0;
+    let oneMinuteAnnounced = false;
     let paused = false;
     let currentEntryId = null; // 編集中のID（新規なら null）
     let debounceSaveTimer = null;
@@ -894,6 +897,8 @@
       paused = false;
       const total = DEV ? 25 : workMinutes * 60;
       remaining = total;
+      sessionTotalSec = total;
+      oneMinuteAnnounced = false;
       timerWork.textContent = fmt(remaining);
       const cm = document.getElementById('calmMsg');
       if (cm) cm.textContent = `残り ${fmt(remaining)} — 深呼吸して続けよう`;
@@ -915,6 +920,8 @@
       clearTimer();
       paused = false;
       remaining = BREAK_SEC;
+      sessionTotalSec = BREAK_SEC;
+      oneMinuteAnnounced = false;
       timerBreak.textContent = fmt(remaining);
       runCountdown('break');
     }
@@ -950,6 +957,23 @@
       }
     }
 
+    // 簡易TTS（Web Speech API）。利用不可ならビープにフォールバック。
+    function speak(text) {
+      try {
+        const synth = window.speechSynthesis;
+        if (synth && typeof SpeechSynthesisUtterance !== 'undefined') {
+          const uttr = new SpeechSynthesisUtterance(text);
+          uttr.lang = 'ja-JP';
+          uttr.rate = 1.0;
+          uttr.pitch = 1.0;
+          synth.speak(uttr);
+          return;
+        }
+      } catch (e) { /* noop */ }
+      // フォールバック: ビープ音
+      playBeep();
+    }
+
 
     function runCountdown(kind) {
       const tick = () => {
@@ -957,6 +981,20 @@
         remaining -= 1;
         if (kind === 'work') { const r = Math.max(0, remaining); timerWork.textContent = fmt(r); updateCalm(r); updateMetrics(); }
         if (kind === 'break') timerBreak.textContent = fmt(Math.max(0, remaining));
+
+        // 終了1分前の音声アナウンス（セッションあたり一度だけ）
+        try {
+          const r = Math.max(0, remaining);
+          if (!oneMinuteAnnounced && sessionTotalSec >= 60 && r === 60) {
+            oneMinuteAnnounced = true;
+            if (kind === 'work') {
+              speak('残り1分です。あと少し集中しましょう。');
+            } else {
+              speak('休憩はあと1分で終わります。');
+            }
+          }
+        } catch (e) { /* noop */ }
+
         if (remaining <= 0) {
           clearTimer();
           playBeep();
