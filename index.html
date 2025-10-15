@@ -131,6 +131,19 @@
 
     /* Gentle coach tip */
     .coach { position: absolute; right: 16px; bottom: 16px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); background: rgba(148,163,184,0.06); font-size: 13px; letter-spacing: .01em; pointer-events: none; }
+    .insight-stream { position: absolute; left: 100%; margin-left: 28px; bottom: 34px; width: 210px; display: flex; flex-direction: column-reverse; gap: 16px; pointer-events: none; overflow: visible; }
+    .insight-bubble { opacity: 0; padding: 10px 14px; border-radius: 14px; border: 1px solid rgba(148, 190, 255, 0.55); background: rgba(96, 165, 250, 0.32); color: #0b1220; font-size: 15px; font-weight: 600; letter-spacing: .04em; text-transform: none; box-shadow: 0 12px 30px rgba(8,21,45,0.42); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); animation: insight-float 9s ease-in-out forwards; }
+    .insight-bubble strong { font-weight: 600; }
+    @keyframes insight-float {
+      0% { opacity: 0; transform: translateY(32px) translateX(20px) scale(0.94); }
+      18% { opacity: 1; transform: translateY(6px) translateX(0) scale(1); }
+      55% { opacity: 1; transform: translateY(-50px) translateX(-8px) scale(1.02); }
+      80% { opacity: 0.9; transform: translateY(-72px) translateX(-12px) scale(1.02); }
+      100% { opacity: 0; transform: translateY(-90px) translateX(-16px) scale(0.99); }
+    }
+    @media (max-width: 900px) {
+      .insight-stream { display: none; }
+    }
 
     /* Search and chips */
     input[type="search"] { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.06); color: var(--fg); padding: 10px 12px; border-radius: 10px; font-size: 14px; }
@@ -263,6 +276,7 @@
           <span class="muted">集中モード:</span>
           <button id="mode5" class="chip" title="5分モード">5分</button>
           <button id="mode15" class="chip" title="15分モード">15分</button>
+          <button id="mode20" class="chip" title="20分モード">20分</button>
           <button id="mode25" class="chip active" title="25分モード">25分</button>
         </div>
         <div class="spacer"></div>
@@ -292,6 +306,7 @@
         <div class="focus-msg" aria-live="polite">今は書くことだけ</div>
         <div id="calmMsg" class="muted" aria-live="polite" style="text-align:center; font-size:13px; margin-top:4px;">残り --:-- — 深呼吸して続けよう</div>
         <div id="metrics" class="muted" aria-live="polite" style="text-align:center; font-size:12px; margin-top:4px;">文字数 0 | WPM 0</div>
+        <div id="insightStream" class="insight-stream" aria-hidden="true"></div>
         <div class="spacer"></div>
         <textarea id="editor" placeholder="今考えていることを、そのまま書き始めましょう。装飾や整形は後で大丈夫です。"></textarea>
         <div class="spacer"></div>
@@ -381,18 +396,23 @@
 
   <script>
     // 設定
-    // 集中モード（5 / 15 / 25分）
+    // 集中モード（5 / 15 / 20 / 25分）
     const MODE_KEY = 'focus_mode_minutes_v1';
     const mode5Btn = document.getElementById('mode5');
     const mode15Btn = document.getElementById('mode15');
+    const mode20Btn = document.getElementById('mode20');
     const mode25Btn = document.getElementById('mode25');
+    const modeButtons = [
+      { btn: mode5Btn, minutes: 5 },
+      { btn: mode15Btn, minutes: 15 },
+      { btn: mode20Btn, minutes: 20 },
+      { btn: mode25Btn, minutes: 25 }
+    ];
     let workMinutes = (() => { try { return parseInt(localStorage.getItem(MODE_KEY)||'25',10)||25; } catch { return 25; } })();
     function updateModeUI() {
-      if (mode5Btn && mode15Btn && mode25Btn) {
-        mode5Btn.classList.toggle('active', workMinutes === 5);
-        mode15Btn.classList.toggle('active', workMinutes === 15);
-        mode25Btn.classList.toggle('active', workMinutes === 25);
-      }
+      modeButtons.forEach(({ btn, minutes }) => {
+        if (btn) btn.classList.toggle('active', workMinutes === minutes);
+      });
       const btn = document.getElementById('btnStart');
       if (btn) btn.textContent = `${workMinutes}分を開始`;
       const brand = document.getElementById('brandHome');
@@ -411,6 +431,7 @@
     }
     if (mode5Btn) mode5Btn.onclick = () => { workMinutes = 5; try{localStorage.setItem(MODE_KEY,'5');}catch{} updateModeUI(); };
     if (mode15Btn) mode15Btn.onclick = () => { workMinutes = 15; try{localStorage.setItem(MODE_KEY,'15');}catch{} updateModeUI(); };
+    if (mode20Btn) mode20Btn.onclick = () => { workMinutes = 20; try{localStorage.setItem(MODE_KEY,'20');}catch{} updateModeUI(); };
     if (mode25Btn) mode25Btn.onclick = () => { workMinutes = 25; try{localStorage.setItem(MODE_KEY,'25');}catch{} updateModeUI(); };
     const BREAK_MIN = 5;
     // 開発確認を早めに: URLに ?dev=1 で 25秒/5秒 に短縮
@@ -429,9 +450,13 @@
     let state = 'home'; // 'home' | 'work' | 'break'
     let timerId = null;
     let remaining = 0;
-    // 1分前アナウンス用のセッション情報
+    // 1分前アナウンス/経過1分メッセージ用のセッション情報
     let sessionTotalSec = 0;
     let oneMinuteAnnounced = false;
+    let firstMinuteCheered = false;
+    let insightStreamActive = false;
+    let insightStreamTimer = null;
+    let insightPromptIndex = 0;
     let paused = false;
     let currentEntryId = null; // 編集中のID（新規なら null）
     let debounceSaveTimer = null;
@@ -473,6 +498,13 @@
     const metricsEl = document.getElementById('metrics');
     const coachEl = $('#coach');
     const coachTips = ['誰に？', 'いつまでに？', '何を？', 'なぜ今？', '成功条件は？'];
+    const insightPrompts = [
+      'なぜ今これを書く？背景は？',
+      '普通に考えるとどうなる？例は？',
+      '本質はどこ？一言で言うと？',
+      '逆から見ると何が見える？',
+      '一番の決め手・制約は何？'
+    ];
     let lastInputAt = Date.now();
     let sessionStartAt = 0;
     let baselineChars = 0;
@@ -512,6 +544,45 @@
       }, 3500);
       // 自動的に一定時間後に隠す（過干渉を避ける）
       setTimeout(() => hideCoach(), coachTips.length * 3500 + 1000);
+    }
+
+    function spawnInsightBubble(text) {
+      const container = document.getElementById('insightStream');
+      if (!container) return;
+      const bubble = document.createElement('div');
+      bubble.className = 'insight-bubble';
+      bubble.textContent = text;
+      container.appendChild(bubble);
+      setTimeout(() => {
+        if (bubble.parentNode === container) container.removeChild(bubble);
+      }, 6000);
+    }
+
+    function startInsightStream() {
+      if (insightStreamActive) return;
+      const container = document.getElementById('insightStream');
+      if (!container) return;
+      insightStreamActive = true;
+      const push = () => {
+        if (!insightStreamActive) return;
+        const text = insightPrompts[insightPromptIndex % insightPrompts.length];
+        insightPromptIndex += 1;
+        spawnInsightBubble(text);
+      };
+      push();
+      if (insightStreamTimer) { try { clearInterval(insightStreamTimer); } catch {} }
+      insightStreamTimer = setInterval(push, 8000);
+    }
+
+    function stopInsightStream(clearBubbles = true) {
+      insightStreamActive = false;
+      if (insightStreamTimer) {
+        try { clearInterval(insightStreamTimer); } catch {}
+        insightStreamTimer = null;
+      }
+      if (!clearBubbles) return;
+      const container = document.getElementById('insightStream');
+      if (container) container.innerHTML = '';
     }
 
     // 読みやすさモード
@@ -654,7 +725,7 @@
       if (name === 'home') scrHome.classList.add('active');
       if (name === 'work') scrWork.classList.add('active');
       if (name === 'break') scrBreak.classList.add('active');
-      if (name !== 'work') { stopMic(); hideCoach(); } // 画面遷移時に音声入力を停止/コーチ非表示
+      if (name !== 'work') { stopMic(); hideCoach(); stopInsightStream(); } // 画面遷移時に音声入力を停止/コーチ非表示
     }
 
     // ユーティリティ
@@ -927,6 +998,9 @@
       remaining = total;
       sessionTotalSec = total;
       oneMinuteAnnounced = false;
+      firstMinuteCheered = false;
+      stopInsightStream();
+      insightPromptIndex = 0;
       timerWork.textContent = fmt(remaining);
       const cm = document.getElementById('calmMsg');
       if (cm) cm.textContent = `残り ${fmt(remaining)} — 深呼吸して続けよう`;
@@ -951,6 +1025,7 @@
       sessionTotalSec = BREAK_SEC;
       oneMinuteAnnounced = false;
       timerBreak.textContent = fmt(remaining);
+      stopInsightStream();
       runCountdown('break');
     }
 
@@ -1007,7 +1082,24 @@
       const tick = () => {
         if (paused) return;
         remaining -= 1;
-        if (kind === 'work') { const r = Math.max(0, remaining); timerWork.textContent = fmt(r); updateCalm(r); updateMetrics(); }
+        if (kind === 'work') {
+          const r = Math.max(0, remaining);
+          timerWork.textContent = fmt(r);
+          updateCalm(r);
+          updateMetrics();
+          // セッション開始から1分経過したら励ましの声を一度だけかける
+          if (!firstMinuteCheered) {
+            const elapsed = sessionTotalSec - r;
+            if (sessionTotalSec >= 60 && elapsed >= 60) {
+              firstMinuteCheered = true;
+              speak('いい感じです。その調子！');
+              toastShow('いい感じ！その調子！');
+            }
+          }
+          if (!insightStreamActive && sessionTotalSec >= 120 && r <= 120) {
+            startInsightStream();
+          }
+        }
         if (kind === 'break') timerBreak.textContent = fmt(Math.max(0, remaining));
 
         // 終了1分前の音声アナウンス（セッションあたり一度だけ）
@@ -1022,6 +1114,7 @@
 
         if (remaining <= 0) {
           clearTimer();
+          stopInsightStream();
           playBeep();
           if (kind === 'work') {
             saveWork(true); // Auto-save here
