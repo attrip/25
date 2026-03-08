@@ -453,7 +453,6 @@
     // 1分前アナウンス/経過1分メッセージ用のセッション情報
     let sessionTotalSec = 0;
     let oneMinuteAnnounced = false;
-    let firstMinuteCheered = false;
     let insightStreamActive = false;
     let insightStreamTimer = null;
     let insightPromptIndex = 0;
@@ -998,7 +997,6 @@
       remaining = total;
       sessionTotalSec = total;
       oneMinuteAnnounced = false;
-      firstMinuteCheered = false;
       stopInsightStream();
       insightPromptIndex = 0;
       timerWork.textContent = fmt(remaining);
@@ -1060,24 +1058,6 @@
       }
     }
 
-    // 簡易TTS（Web Speech API）。利用不可ならビープにフォールバック。
-    function speak(text) {
-      try {
-        const synth = window.speechSynthesis;
-        if (synth && typeof SpeechSynthesisUtterance !== 'undefined') {
-          const uttr = new SpeechSynthesisUtterance(text);
-          uttr.lang = 'ja-JP';
-          uttr.rate = 1.0;
-          uttr.pitch = 1.0;
-          synth.speak(uttr);
-          return;
-        }
-      } catch (e) { /* noop */ }
-      // フォールバック: ビープ音
-      playBeep();
-    }
-
-
     function runCountdown(kind) {
       const tick = () => {
         if (paused) return;
@@ -1087,28 +1067,19 @@
           timerWork.textContent = fmt(r);
           updateCalm(r);
           updateMetrics();
-          // セッション開始から1分経過したら励ましの声を一度だけかける
-          if (!firstMinuteCheered) {
-            const elapsed = sessionTotalSec - r;
-            if (sessionTotalSec >= 60 && elapsed >= 60) {
-              firstMinuteCheered = true;
-              speak('いい感じです。その調子！');
-              toastShow('いい感じ！その調子！');
-            }
-          }
           if (!insightStreamActive && sessionTotalSec >= 120 && r <= 120) {
             startInsightStream();
           }
         }
         if (kind === 'break') timerBreak.textContent = fmt(Math.max(0, remaining));
 
-        // 終了1分前の音声アナウンス（セッションあたり一度だけ）
+        // 終了1分前の通知（セッションあたり一度だけ、無音）
         try {
           const r = Math.max(0, remaining);
           const threshold = ONE_MIN_ALERT_THRESHOLD;
           if (oneMinuteAlertEnabled && !oneMinuteAnnounced && sessionTotalSec >= threshold && r === threshold) {
             oneMinuteAnnounced = true;
-            speak(kind === 'work' ? '残り1分です。あと少し集中しましょう。' : '休憩はあと1分で終わります。');
+            toastShow(kind === 'work' ? '残り1分です。' : '休憩はあと1分で終わります。');
           }
         } catch (e) { /* noop */ }
 
@@ -1266,6 +1237,30 @@
     const srSupported = !!SR;
     let sr = null;
     let srOn = false;
+    const MIC_MAX_MINUTES = 25; // fail-safe run window
+    let micDeadlineAt = 0;
+    let micKeepAliveId = null;
+    const AUTO_BREAK_THRESHOLD = 42; // 1行が長すぎないよう自動改行
+    const AUTO_BREAK_PUNCT = /[。！？!?]$/;
+
+    function startMicKeepAlive() {
+      if (micKeepAliveId) return;
+      micKeepAliveId = setInterval(() => {
+        if (!srOn || state !== 'work') return;
+        if (micDeadlineAt && Date.now() > micDeadlineAt) {
+          toastShow('音声入力は25分でリフレッシュします');
+          stopMic();
+          return;
+        }
+        if (sr && !sr.rec) {
+          try { sr.start(); } catch {}
+        }
+      }, 4000);
+    }
+    function stopMicKeepAlive() {
+      if (micKeepAliveId) { clearInterval(micKeepAliveId); micKeepAliveId = null; }
+      micDeadlineAt = 0;
+    }
 
     class SimpleSR {
       constructor({ lang = 'ja-JP', onFinal, onInterim, onStart, onEnd, onError, autoRestart = true }) {
@@ -1300,7 +1295,8 @@
         };
         r.onerror = (e) => {
           const er = (e && e.error) ? e.error : 'unknown';
-          if (['not-allowed','service-not-allowed','audio-capture','network'].includes(er)) { this._stopping = true; }
+          const fatalErrors = ['not-allowed','service-not-allowed','audio-capture'];
+          if (fatalErrors.includes(er)) this._stopping = true;
           this.onError && this.onError(er);
         };
         r.onend = () => {
@@ -1325,18 +1321,33 @@
 
     function appendToEditor(text) {
       if (!text) return;
-      const last = editor.value.slice(-1);
-      const startsWithPunctOrNl = /^[\n、。！？!?））」』】\s]/.test(text);
       let joiner = '';
+      const startsWithPunctOrNl = /^[\n、。！？!?））」』】\s]/.test(text);
       if (editor.value && !editor.value.endsWith('\n')) {
         if (startsWithPunctOrNl) {
-          if (last === ' ') editor.value = editor.value.slice(0, -1);
+          if (editor.value.endsWith(' ')) editor.value = editor.value.slice(0, -1);
         } else {
           joiner = ' ';
         }
       }
-      editor.value = editor.value + joiner + text;
+      const beforeInsert = editor.value;
+      editor.value = beforeInsert + joiner + text;
+      maybeAutoBreak(text);
       editor.selectionStart = editor.selectionEnd = editor.value.length;
+    }
+
+    function maybeAutoBreak(insertedText) {
+      if (!insertedText || insertedText.includes('\n')) return;
+      const trimmed = insertedText.trim();
+      if (!trimmed) return;
+      if (!AUTO_BREAK_PUNCT.test(trimmed.slice(-1))) return;
+      const current = editor.value;
+      const lastBreak = current.lastIndexOf('\n');
+      const segmentStart = (lastBreak === -1) ? 0 : lastBreak + 1;
+      const segment = current.slice(segmentStart).trimEnd();
+      if (segment.length < AUTO_BREAK_THRESHOLD) return;
+      if (/\n\s*$/.test(current)) return;
+      editor.value = current.replace(/\s*$/, '') + '\n\n';
     }
 
     function normalizeDictation(s) {
@@ -1376,8 +1387,19 @@
         onEnd: () => { },
         onInterim: (tmp) => { if (tmp) { micInterim.style.display = 'block'; micInterim.textContent = '聞き取り中: ' + tmp; } else { micInterim.style.display = 'none'; } },
         onFinal: (txt) => appendToEditor(normalizeDictation(txt)),
-        onError: (err) => { const fatal = ['not-allowed','service-not-allowed','audio-capture','network']; if (err === 'no-speech' || err === 'aborted') return; if (fatal.includes(err)) { try { stopMic(); } catch {} srOn = false; updateMicUI(); toastShow('マイクエラー: ' + err); return; } srOn = false; updateMicUI(); toastShow('音声入力エラー: ' + err); }
+        onError: (err) => {
+          const fatal = ['not-allowed','service-not-allowed','audio-capture'];
+          if (err === 'no-speech' || err === 'aborted') return;
+          if (err === 'network') { toastShow('音声入力の接続を再確立しています…'); return; }
+          if (fatal.includes(err)) { try { stopMic(); } catch {} srOn = false; updateMicUI(); toastShow('マイクエラー: ' + err); return; }
+          srOn = false;
+          updateMicUI();
+          toastShow('音声入力エラー: ' + err);
+        }
       });
+      const limitMinutes = Math.min(MIC_MAX_MINUTES, Math.max(1, workMinutes || MIC_MAX_MINUTES));
+      micDeadlineAt = Date.now() + limitMinutes * 60 * 1000;
+      startMicKeepAlive();
       try { sr.start(); editor.focus(); } catch (e) { toastShow('音声入力を開始できませんでした'); }
       updateMicUI();
     }
@@ -1387,6 +1409,7 @@
       micStatus.style.display = 'none';
       micInterim.style.display = 'none';
       updateMicUI();
+      stopMicKeepAlive();
     }
     // 入力監視: 無操作でコーチ表示 & 自動保存
     editor.addEventListener('input', () => {
