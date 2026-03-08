@@ -154,6 +154,10 @@
     #chatInput { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 12px 14px; border-radius: 12px; font-size: 20px; line-height: 1.8; flex: 1 1 auto; min-width: 0; }
     .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); color: var(--fg); background: rgba(148,163,184,0.06); border-radius: 999px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
     .chip.active { border-color: rgba(96,165,250,.5); background: rgba(96,165,250,.12); }
+    .quick-guide { border: 1px dashed var(--border); border-radius: 12px; padding: 10px 12px; background: rgba(148,163,184,0.04); }
+    .quick-guide-title { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    .quick-points { display: flex; gap: 8px; flex-wrap: wrap; }
+    .quick-points .chip { cursor: default; }
 
     /* Purpose input (bigger, more prominent) */
     #purposeInput { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 12px 14px; border-radius: 12px; font-size: 18px; line-height: 1.4; }
@@ -268,8 +272,18 @@
     <section id="screen-home" class="screen active">
       <div class="card">
         <div class="row">
-          <input id="purposeInput" type="text" placeholder="一行で今日の目的を書く（例: 仕様書の初稿を仕上げる）" style="flex:1; min-width: 260px;" />
+          <input id="purposeInput" type="text" placeholder="今日やること（空欄でも開始OK）" style="flex:1; min-width: 260px;" />
           <button id="btnStart" class="primary">25分を開始</button>
+          <button id="btnStartVoice" title="音声入力で始める">🎤 音声で開始</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="quick-guide">
+          <div class="quick-guide-title">すぐ始める: 1) 開始 2) 入力 or 話す 3) 自動で保存されます</div>
+          <div class="quick-points">
+            <span class="chip">🎤 音声入力対応</span>
+            <span class="chip">💾 3秒ごとに自動保存</span>
+            <span class="chip">🗂 保存ログから再開</span>
+          </div>
         </div>
         <div class="spacer"></div>
         <div class="row" id="modeChips">
@@ -281,8 +295,8 @@
         </div>
         <div class="spacer"></div>
         <div class="row" style="align-items:flex-start; gap: 10px;">
-          <span class="muted" style="margin-top: 8px;">お知らせ:</span>
-          <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="oneMinAlert" /> 1分前に音声でお知らせ</label>
+          <span class="muted" style="margin-top: 8px;">通知:</span>
+          <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="oneMinAlert" /> 終了1分前に音声通知</label>
         </div>
         <!-- テスト用ヒントは非表示に（機能は存続） -->
         <div class="spacer"></div>
@@ -293,9 +307,9 @@
         <div class="spacer"></div>
         <div id="tagChips" class="chips"></div>
         <div class="spacer"></div>
-        <div class="muted">過去の保存テキスト</div>
+        <div class="muted">保存ログ（自動保存 + 手動保存）</div>
         <ul id="listSaved" class="list"></ul>
-        <div id="emptySaved" class="muted ghost">まだ保存されたテキストはありません。</div>
+        <div id="emptySaved" class="muted ghost">まだログはありません。開始すると自動で保存されます。</div>
       </div>
     </section>
 
@@ -303,12 +317,12 @@
     <section id="screen-work" class="screen">
       <div class="card">
         <div class="timer" id="timerWork">00:00</div>
-        <div class="focus-msg" aria-live="polite">今は書くことだけ</div>
+        <div class="focus-msg" aria-live="polite">入力でも、🎤音声でも書けます</div>
         <div id="calmMsg" class="muted" aria-live="polite" style="text-align:center; font-size:13px; margin-top:4px;">残り --:-- — 深呼吸して続けよう</div>
         <div id="metrics" class="muted" aria-live="polite" style="text-align:center; font-size:12px; margin-top:4px;">文字数 0 | WPM 0</div>
         <div id="insightStream" class="insight-stream" aria-hidden="true"></div>
         <div class="spacer"></div>
-        <textarea id="editor" placeholder="今考えていることを、そのまま書き始めましょう。装飾や整形は後で大丈夫です。"></textarea>
+        <textarea id="editor" placeholder="そのまま入力、または「🎤 話して入力」でスタート。内容は自動保存されます。"></textarea>
         <div class="spacer"></div>
         <div class="row" id="chatRow">
           <input id="chatInput" type="text" placeholder="ここに1行入力してEnterで追記" />
@@ -316,21 +330,21 @@
         </div>
         <div class="spacer"></div>
         <div class="row">
-          <button id="btnSave" class="primary">保存</button>
+          <button id="btnSave" class="primary">今すぐ保存</button>
           <button id="btnPause" class="warn">一時停止</button>
           <button id="btnReset" class="danger">リセット</button>
-          <button id="btnMic" title="音声入力">🎤 音声入力開始</button>
+          <button id="btnMic" title="話して入力">🎤 話して入力</button>
           <button id="btnFullscreen" title="集中モード切替">集中モード</button>
           <span id="saveStatus" class="muted" style="margin-left: auto;"></span>
         </div>
         <div class="spacer"></div>
-        <div id="micStatus" class="muted" style="display:none">音声入力中…</div>
+        <div id="micStatus" class="muted" style="display:none">音声入力中…（内容は自動保存されます）</div>
         <div id="micInterim" class="muted" style="display:none"></div>
         <div id="coach" class="coach" style="display:none" aria-live="polite"></div>
         <div id="micOverlay" class="mic-overlay" aria-hidden="true">
           <div class="mic-panel">
-            <div class="mic-title">音声入力</div>
-            <button id="micOverlayStart" class="primary" style="min-width:200px; font-size:16px;">🎤 音声入力を開始</button>
+            <div class="mic-title">🎤 話して入力できます</div>
+            <button id="micOverlayStart" class="primary" style="min-width:200px; font-size:16px;">マイクを許可して開始</button>
             <div style="margin-top:8px; display:flex; gap:8px; align-items:center; justify-content:center;">
               <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="micAuto" /> 次回から自動で開始</label>
               <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="micPersist" /> 自動再開を維持</label>
@@ -487,6 +501,7 @@
     const chatSend = document.getElementById('chatSend');
     const focusMsg = document.querySelector('#screen-work .focus-msg');
     const purposeInput = $('#purposeInput');
+    const btnStartVoice = $('#btnStartVoice');
     const listSaved = $('#listSaved');
     const emptySaved = $('#emptySaved');
     const toast = $('#toast');
@@ -1011,6 +1026,7 @@
       const fm = document.querySelector('#screen-work .focus-msg');
       if (fm) fm.style.display = ''; // セッション開始時に再表示
       focusFoldTimer = setTimeout(() => { if (fm) fm.style.display = 'none'; }, 30000);
+      if (saveStatusEl) saveStatusEl.textContent = '入力中は3秒ごとに自動保存';
       updateFocusFromEditor();
       if (startCountdown) runCountdown('work');
     }
@@ -1185,6 +1201,10 @@
     }
 
     $('#btnStart').onclick = startNewSession;
+    if (btnStartVoice) btnStartVoice.onclick = () => {
+      startNewSession();
+      setTimeout(() => { try { attemptAutoMicStart(); } catch {} }, 80);
+    };
 
     if (purposeInput) {
       purposeInput.addEventListener('keydown', (e) => {
@@ -1370,12 +1390,15 @@
 
     function updateMicUI() {
       const btn = $('#btnMic');
+      if (!btn) return;
       if (!srSupported) {
+        btn.textContent = '🎤 このブラウザは非対応';
         btn.disabled = true;
         btn.title = 'このブラウザは音声入力に対応していません';
         return;
       }
-      btn.textContent = srOn ? '🎤 音声入力停止' : '🎤 音声入力開始';
+      btn.textContent = srOn ? '🎤 話して入力を停止' : '🎤 話して入力';
+      btn.disabled = false;
     }
 
     function startMic() {
@@ -1383,7 +1406,7 @@
       if (!sr) sr = new SimpleSR({
         autoRestart: (function(){ try { const v = localStorage.getItem(MIC_PERSIST_KEY); return (v === null || v === '1'); } catch { return true; } })(),
         lang: 'ja-JP',
-        onStart: () => { srOn = true; try{ localStorage.setItem(MIC_OK_KEY,'1'); }catch{} micStatus.style.display = 'block'; micStatus.textContent = '音声入力中…'; updateMicUI(); },
+        onStart: () => { srOn = true; try{ localStorage.setItem(MIC_OK_KEY,'1'); }catch{} micStatus.style.display = 'block'; micStatus.textContent = '音声入力中…（内容は自動保存されます）'; updateMicUI(); },
         onEnd: () => { },
         onInterim: (tmp) => { if (tmp) { micInterim.style.display = 'block'; micInterim.textContent = '聞き取り中: ' + tmp; } else { micInterim.style.display = 'none'; } },
         onFinal: (txt) => appendToEditor(normalizeDictation(txt)),
