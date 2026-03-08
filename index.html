@@ -9,7 +9,7 @@
       try {
         var KEY = 'focus_theme_v1_theme';
         var t = localStorage.getItem(KEY);
-        if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) t = 'light';
+        if (!t) t = 'light';
         if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
       } catch (e) {}
     })();
@@ -693,7 +693,7 @@
         const saved = localStorage.getItem(THEME_KEY);
         if (saved === 'light' || saved === 'dark') return saved;
       } catch {}
-      return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+      return 'light';
     })();
 
     function applyTheme(theme) {
