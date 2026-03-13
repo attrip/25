@@ -410,6 +410,7 @@
           </div>
           <div class="image-controls">
             <div class="file-row">
+              <button id="btnUseNoteBase">ノートを使う</button>
               <label for="imageBackgroundInput" class="button-like">背景画像を選ぶ</label>
               <input id="imageBackgroundInput" type="file" accept="image/*" />
               <span id="imageBackgroundStatus" class="file-status">未選択</span>
@@ -461,6 +462,8 @@
               <button id="btnExportJpeg">JPEG書き出し</button>
             </div>
             <div id="exportDirStatus" class="muted">保存先未選択</div>
+            <div class="spacer"></div>
+            <button id="btnCopyBottom" class="primary copy-btn">📋 コピー</button>
           </div>
         </div>
         <div class="spacer"></div>
@@ -626,6 +629,7 @@
     const chatInput = document.getElementById('chatInput');
     const chatSend = document.getElementById('chatSend');
     const btnImageTemplate = $('#btnImageTemplate');
+    const btnUseNoteBase = $('#btnUseNoteBase');
     const imagePromptInput = $('#imagePromptInput');
     const imageBackgroundInput = $('#imageBackgroundInput');
     const imageBackgroundStatus = $('#imageBackgroundStatus');
@@ -647,6 +651,7 @@
     const btnPromptDraft = $('#btnPromptDraft');
     const btnPromptCopy = $('#btnPromptCopy');
     const btnCopy = $('#btnCopy');
+    const btnCopyBottom = $('#btnCopyBottom');
     const focusMsg = document.querySelector('#screen-work .focus-msg');
     const purposeInput = $('#purposeInput');
     const btnStartVoice = $('#btnStartVoice');
@@ -673,6 +678,7 @@
     let purposeComposing = false;
     let focusFoldTimer = null;
     let imageBackground = null;
+    let imageBaseMode = 'note';
     let exportDirHandle = null;
     let currentCanvasFont = 'Noto Sans JP';
     let annotationTool = 'pen';
@@ -1090,6 +1096,26 @@
       ctx.fillStyle = '#d8d1c4';
       ctx.fillRect(0, 0, width, height);
     }
+    function renderNoteBase(ctx, width, height) {
+      renderCanvasPlaceholder(ctx, width, height);
+      ctx.fillStyle = 'rgba(255,255,255,0.96)';
+      ctx.shadowColor = 'rgba(0,0,0,0.18)';
+      ctx.shadowBlur = 28;
+      ctx.shadowOffsetX = 20;
+      ctx.shadowOffsetY = 18;
+      const padX = width * 0.14;
+      const padY = height * 0.14;
+      const noteWidth = width - padX * 2;
+      const noteHeight = height - padY * 2;
+      ctx.fillRect(padX, padY, noteWidth, noteHeight);
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.fillStyle = 'rgba(245,245,245,0.95)';
+      ctx.fillRect(padX + 12, padY, 10, noteHeight);
+      ctx.fillStyle = 'rgba(230,230,230,0.9)';
+      ctx.fillRect(padX + 24, padY, 4, noteHeight);
+    }
     function applyCanvasAspect() {
       if (!imageCanvas) return;
       const aspect = canvasAspect && canvasAspect.value || '16:9';
@@ -1166,6 +1192,7 @@
       const height = imageCanvas.height;
       ctx.clearRect(0, 0, width, height);
       if (imageBackground) drawCoverImage(ctx, imageBackground, width, height);
+      else if (imageBaseMode === 'note') renderNoteBase(ctx, width, height);
       else renderCanvasPlaceholder(ctx, width, height);
 
       const text = String(overlayTextInput && overlayTextInput.value || '').trim();
@@ -1689,6 +1716,14 @@
     $('#btnSave').onclick = () => saveWork(false);
     if (btnImageTemplate) btnImageTemplate.onclick = insertImageTemplate;
     if (btnCopy) btnCopy.onclick = () => { copyDraftBundle(btnCopy); };
+    if (btnCopyBottom) btnCopyBottom.onclick = () => { copyDraftBundle(btnCopyBottom); };
+    if (btnUseNoteBase) btnUseNoteBase.onclick = () => {
+      imageBackground = null;
+      imageBaseMode = 'note';
+      if (imageBackgroundInput) imageBackgroundInput.value = '';
+      updateImageBackgroundStatus('ノート台紙');
+      renderImageCanvas();
+    };
     if (btnPromptDraft) btnPromptDraft.onclick = appendImageDraftToEditor;
     if (btnPromptCopy) btnPromptCopy.onclick = () => { copyText(buildImageDraftBlock(), btnPromptCopy, '画像下書きをコピーしました'); };
     if (imagePromptInput) imagePromptInput.addEventListener('input', syncPromptToOverlay);
@@ -1719,10 +1754,12 @@
       const file = e.target && e.target.files && e.target.files[0];
       if (!file) {
         imageBackground = null;
-        updateImageBackgroundStatus('');
+        imageBaseMode = 'note';
+        updateImageBackgroundStatus('ノート台紙');
         renderImageCanvas();
         return;
       }
+      imageBaseMode = 'custom';
       updateImageBackgroundStatus(file.name);
       const url = URL.createObjectURL(file);
       const img = new Image();
@@ -1743,7 +1780,7 @@
         updateExportDirStatus(exportDirHandle && exportDirHandle.name || '');
       } catch {}
     };
-    updateImageBackgroundStatus('');
+    updateImageBackgroundStatus('ノート台紙');
     updateAnnotationToolUI();
     if (imageCanvas) {
       imageCanvas.addEventListener('pointerdown', (e) => {
