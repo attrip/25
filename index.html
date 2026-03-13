@@ -159,10 +159,6 @@
     #chatInput { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 12px 14px; border-radius: 12px; font-size: 20px; line-height: 1.8; flex: 1 1 auto; min-width: 0; }
     .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); color: var(--fg); background: rgba(148,163,184,0.06); border-radius: 999px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
     .chip.active { border-color: rgba(96,165,250,.5); background: rgba(96,165,250,.12); }
-    .quick-guide { border: 1px dashed var(--border); border-radius: 12px; padding: 10px 12px; background: rgba(148,163,184,0.04); }
-    .quick-guide-title { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
-    .quick-points { display: flex; gap: 8px; flex-wrap: wrap; }
-    .quick-points .chip { cursor: default; }
     .copy-btn.is-copied {
       border-color: rgba(125,211,252,0.72);
       background: rgba(56,189,248,0.18);
@@ -308,15 +304,6 @@
           <button id="btnStartVoice" title="音声入力で始める">🎤 音声で開始</button>
         </div>
         <div class="spacer"></div>
-        <div class="quick-guide">
-          <div class="quick-guide-title">すぐ始める: 1) 開始 2) 話す 3) コピーして使う</div>
-          <div class="quick-points">
-            <span class="chip">🎤 音声入力対応</span>
-            <span class="chip">📋 ワンタップでコピー</span>
-            <span class="chip">💾 3秒ごとに自動保存</span>
-          </div>
-        </div>
-        <div class="spacer"></div>
         <div class="row" id="modeChips">
           <span class="muted">集中モード:</span>
           <button id="mode5" class="chip" title="5分モード">5分</button>
@@ -340,7 +327,7 @@
         <div class="spacer"></div>
         <div class="muted">保存ログ（自動保存 + 手動保存）</div>
         <ul id="listSaved" class="list"></ul>
-        <div id="emptySaved" class="muted ghost">まだログはありません。開始すると自動で保存されます。</div>
+        <div id="emptySaved" class="muted ghost">まだログはありません。</div>
       </div>
     </section>
 
@@ -367,7 +354,7 @@
           <button id="btnReset" class="danger">リセット</button>
           <button id="btnMic" title="話して入力">🎤 話して入力</button>
           <button id="btnFullscreen" title="集中モード切替">集中モード</button>
-          <span id="saveStatus" class="muted" style="margin-left: auto;"></span>
+          <span id="saveStatus" class="muted" style="margin-left: auto;">未保存。入力すると3秒後に自動保存</span>
         </div>
         <div class="spacer"></div>
         <div id="micStatus" class="muted" style="display:none">音声入力中…（内容は自動保存されます）</div>
