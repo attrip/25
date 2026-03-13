@@ -411,7 +411,8 @@
           <div class="image-controls">
             <div class="file-row">
               <button id="btnUseNoteBase">ノートを使う</button>
-              <label for="imageBackgroundInput" class="button-like">背景画像を選ぶ</label>
+              <button id="btnUsePlainBase">なし</button>
+              <label for="imageBackgroundInput" class="button-like">🖼 画像を選ぶ</label>
               <input id="imageBackgroundInput" type="file" accept="image/*" />
               <span id="imageBackgroundStatus" class="file-status">未選択</span>
             </div>
@@ -630,6 +631,7 @@
     const chatSend = document.getElementById('chatSend');
     const btnImageTemplate = $('#btnImageTemplate');
     const btnUseNoteBase = $('#btnUseNoteBase');
+    const btnUsePlainBase = $('#btnUsePlainBase');
     const imagePromptInput = $('#imagePromptInput');
     const imageBackgroundInput = $('#imageBackgroundInput');
     const imageBackgroundStatus = $('#imageBackgroundStatus');
@@ -1722,6 +1724,13 @@
       imageBaseMode = 'note';
       if (imageBackgroundInput) imageBackgroundInput.value = '';
       updateImageBackgroundStatus('ノート台紙');
+      renderImageCanvas();
+    };
+    if (btnUsePlainBase) btnUsePlainBase.onclick = () => {
+      imageBackground = null;
+      imageBaseMode = 'plain';
+      if (imageBackgroundInput) imageBackgroundInput.value = '';
+      updateImageBackgroundStatus('なし');
       renderImageCanvas();
     };
     if (btnPromptDraft) btnPromptDraft.onclick = appendImageDraftToEditor;
