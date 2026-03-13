@@ -382,7 +382,7 @@
     </header>
 
     <!-- ホーム画面 -->
-    <section id="screen-home" class="screen active">
+    <section id="screen-home" class="screen">
       <div class="card home-card">
         <div class="home-intake">
           <input id="purposeInput" class="home-input" type="text" placeholder="思っていることを書いてみる" />
@@ -392,7 +392,7 @@
           </div>
         </div>
         <details class="home-drawer">
-          <summary>設定とログ</summary>
+          <summary>設定</summary>
           <div class="row" id="modeChips">
             <span class="muted">集中モード:</span>
             <button id="mode5" class="chip" title="5分モード">5分</button>
@@ -405,23 +405,12 @@
             <span class="muted" style="margin-top: 8px;">通知:</span>
             <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="oneMinAlert" /> 終了1分前に音声通知</label>
           </div>
-          <div class="spacer"></div>
-          <div class="row">
-            <input id="searchInput" type="search" placeholder="検索（タイトル・本文・#タグ）" style="flex:1; min-width: 240px;">
-            <button id="btnStarFilter" title="スターのみ切替">☆ すべて</button>
-          </div>
-          <div class="spacer"></div>
-          <div id="tagChips" class="chips"></div>
-          <div class="spacer"></div>
-          <div class="muted">保存ログ（自動保存 + 手動保存）</div>
-          <ul id="listSaved" class="list"></ul>
-          <div id="emptySaved" class="muted ghost">まだログはありません。</div>
         </details>
       </div>
     </section>
 
     <!-- 作業画面 -->
-    <section id="screen-work" class="screen">
+    <section id="screen-work" class="screen active">
       <div class="card">
         <div class="timer" id="timerWork">00:00</div>
         <div class="focus-msg" aria-live="polite">話してメモして、最後にコピー</div>
@@ -516,6 +505,17 @@
             <button id="btnCopyBottom" class="primary copy-btn">📋 コピー</button>
           </div>
         </div>
+        <div class="spacer"></div>
+        <div class="row">
+          <input id="searchInput" type="search" placeholder="検索（タイトル・本文・#タグ）" style="flex:1; min-width: 240px;">
+          <button id="btnStarFilter" title="スターのみ切替">☆ すべて</button>
+        </div>
+        <div class="spacer"></div>
+        <div id="tagChips" class="chips"></div>
+        <div class="spacer"></div>
+        <div class="muted">ログ</div>
+        <ul id="listSaved" class="list"></ul>
+        <div id="emptySaved" class="muted ghost">まだログはありません。</div>
         <div class="spacer"></div>
         <div id="micStatus" class="muted" style="display:none">音声入力中…（内容は自動保存されます）</div>
         <div id="micInterim" class="muted" style="display:none"></div>
@@ -640,7 +640,7 @@
     // アナウンス文言は固定（カスタマイズなし）
 
     // 状態
-    let state = 'home'; // 'home' | 'work' | 'break'
+    let state = 'work'; // 'home' | 'work' | 'break'
     let timerId = null;
     let remaining = 0;
     // 1分前アナウンス/経過1分メッセージ用のセッション情報
@@ -1723,10 +1723,10 @@
 
     // イベント
     const btnHomeEl = $('#btnHome');
-    if (btnHomeEl) btnHomeEl.onclick = () => { clearTimer(); showScreen('home'); refreshList2(); };
+    if (btnHomeEl) btnHomeEl.onclick = () => { clearTimer(); showScreen('work'); refreshList2(); };
     const brandHome = document.querySelector('#brandHome');
-    if (brandHome) brandHome.onclick = (e) => { e.preventDefault(); clearTimer(); showScreen('home'); refreshList2(); };
-    $('#btnBackHome').onclick = () => { clearTimer(); showScreen('home'); refreshList2(); };
+    if (brandHome) brandHome.onclick = (e) => { e.preventDefault(); clearTimer(); showScreen('work'); refreshList2(); };
+    $('#btnBackHome').onclick = () => { clearTimer(); showScreen('work'); refreshList2(); };
 
     function startNewSession(options = {}) {
       const { deferEditorFocus = false } = options;
@@ -1781,7 +1781,7 @@
     }
     $('#btnPause').onclick = () => { paused = !paused; $('#btnPause').textContent = paused ? '再開' : '一時停止'; };
     $('#btnReset').onclick = () => { if (state === 'work') startWork(false); if (state === 'break') startBreak(); };
-    $('#btnSkipBreak').onclick = () => { clearTimer(); toastShow('休憩をスキップしました'); showScreen('home'); };
+    $('#btnSkipBreak').onclick = () => { clearTimer(); toastShow('休憩をスキップしました'); showScreen('work'); };
 
     $('#btnSave').onclick = () => saveWork(false);
     if (btnImageTemplate) btnImageTemplate.onclick = insertImageTemplate;
@@ -1902,6 +1902,7 @@
     if (btnExportJpeg) btnExportJpeg.onclick = exportImageAsJpeg;
     updateExportDirStatus('');
     applyCanvasAspect();
+    if (!editor.value && !currentEntryId) startNewSession();
 
     // 読みやすさモード: ヘッダーのボタン
     const btnReadMode = $('#btnReadMode');
