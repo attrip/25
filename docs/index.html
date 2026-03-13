@@ -1014,21 +1014,6 @@
     function renderCanvasPlaceholder(ctx, width, height) {
       ctx.fillStyle = '#d8d1c4';
       ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = 'rgba(255,255,255,0.96)';
-      ctx.shadowColor = 'rgba(0,0,0,0.26)';
-      ctx.shadowBlur = 28;
-      ctx.shadowOffsetX = 26;
-      ctx.shadowOffsetY = 18;
-      const padX = width * 0.16;
-      const padY = height * 0.14;
-      ctx.fillRect(padX, padY, width - padX * 2 - 44, height - padY * 2);
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-      ctx.fillStyle = 'rgba(240,240,240,0.95)';
-      ctx.fillRect(padX - 12, padY, 18, height - padY * 2);
-      ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-      ctx.strokeRect(padX, padY, width - padX * 2 - 44, height - padY * 2);
     }
     function applyCanvasAspect() {
       if (!imageCanvas) return;
