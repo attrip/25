@@ -958,6 +958,32 @@
         return false;
       }
     }
+    async function canvasToBlob(canvas, type = 'image/png', quality) {
+      return await new Promise((resolve) => {
+        if (!canvas || !canvas.toBlob) { resolve(null); return; }
+        canvas.toBlob((blob) => resolve(blob), type, quality);
+      });
+    }
+    async function copyDraftBundle(button = null) {
+      const text = String(editor.value || '').trim();
+      renderImageCanvas();
+      const pngBlob = await canvasToBlob(imageCanvas, 'image/png');
+      try {
+        if (navigator.clipboard && window.ClipboardItem && pngBlob) {
+          const items = {
+            'image/png': pngBlob
+          };
+          if (text) items['text/plain'] = new Blob([text], { type: 'text/plain' });
+          await navigator.clipboard.write([new ClipboardItem(items)]);
+          playCopyEffect(button);
+          toastShow('文字と画像をコピーしました', 2200, 'copy');
+          return true;
+        }
+      } catch {}
+      if (text) return await copyText(text, button, '文字をコピーしました');
+      toastShow('画像コピーに未対応の環境です');
+      return false;
+    }
     function updateFocusFromEditor(force = false) {
       try {
         const first = (editor.value.split(/\n/, 1)[0] || '').trim();
@@ -1662,7 +1688,7 @@
 
     $('#btnSave').onclick = () => saveWork(false);
     if (btnImageTemplate) btnImageTemplate.onclick = insertImageTemplate;
-    if (btnCopy) btnCopy.onclick = () => { copyText(editor.value || '', btnCopy, '現在のメモをコピーしました'); };
+    if (btnCopy) btnCopy.onclick = () => { copyDraftBundle(btnCopy); };
     if (btnPromptDraft) btnPromptDraft.onclick = appendImageDraftToEditor;
     if (btnPromptCopy) btnPromptCopy.onclick = () => { copyText(buildImageDraftBlock(), btnPromptCopy, '画像下書きをコピーしました'); };
     if (imagePromptInput) imagePromptInput.addEventListener('input', syncPromptToOverlay);
