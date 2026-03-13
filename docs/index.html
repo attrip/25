@@ -421,6 +421,13 @@
                   <option value="bottom">下</option>
                 </select>
               </label>
+              <label>帯
+                <select id="overlayBandStyle">
+                  <option value="none" selected>なし</option>
+                  <option value="soft">うすく</option>
+                  <option value="solid">しっかり</option>
+                </select>
+              </label>
               <label>サイズ
                 <input id="overlayFontSize" type="range" min="40" max="180" step="2" value="88" />
               </label>
@@ -598,6 +605,7 @@
     const imageBackgroundInput = $('#imageBackgroundInput');
     const overlayTextInput = $('#overlayTextInput');
     const overlayPosition = $('#overlayPosition');
+    const overlayBandStyle = $('#overlayBandStyle');
     const overlayFontSize = $('#overlayFontSize');
     const overlayFontFamily = $('#overlayFontFamily');
     const customFontInput = $('#customFontInput');
@@ -1062,6 +1070,13 @@
       let centerY = height - blockHeight / 2 - 72;
       if (position === 'top') centerY = blockHeight / 2 + 72;
       if (position === 'center') centerY = height / 2;
+      const bandStyle = overlayBandStyle && overlayBandStyle.value || 'none';
+      if (bandStyle !== 'none') {
+        const padX = Math.max(56, width * 0.08);
+        const bandHeight = blockHeight + fontSize * 0.9;
+        ctx.fillStyle = bandStyle === 'solid' ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.42)';
+        ctx.fillRect(padX, centerY - bandHeight / 2, width - padX * 2, bandHeight);
+      }
       ctx.fillStyle = '#111111';
       ctx.shadowColor = 'rgba(255,255,255,0.22)';
       ctx.shadowBlur = 8;
@@ -1566,6 +1581,7 @@
     if (imagePromptInput) imagePromptInput.addEventListener('input', syncPromptToOverlay);
     if (overlayTextInput) overlayTextInput.addEventListener('input', renderImageCanvas);
     if (overlayPosition) overlayPosition.addEventListener('change', renderImageCanvas);
+    if (overlayBandStyle) overlayBandStyle.addEventListener('change', renderImageCanvas);
     if (overlayFontSize) overlayFontSize.addEventListener('input', renderImageCanvas);
     if (overlayFontFamily) overlayFontFamily.addEventListener('change', async () => {
       currentCanvasFont = overlayFontFamily.value || 'Noto Sans JP';
