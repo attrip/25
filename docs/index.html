@@ -70,6 +70,52 @@
     .card { background: rgba(15,23,42,0.48); border: 1px solid var(--border); border-radius: 14px; padding: 18px; position: relative; }
     .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     .spacer { height: 12px; }
+    .home-card { padding: 22px; }
+    .home-intake { display: grid; gap: 14px; }
+    .home-input {
+      width: 100%;
+      appearance: none;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(148,163,184,0.06);
+      color: var(--fg);
+      padding: 16px 18px;
+      border-radius: 16px;
+      font-size: 20px;
+      line-height: 1.35;
+    }
+    .home-input:focus {
+      outline: none;
+      border-color: rgba(96,165,250,.55);
+      box-shadow: 0 0 0 3px rgba(96,165,250,.18);
+    }
+    .home-actions { display: grid; gap: 10px; }
+    .start-button {
+      width: 100%;
+      min-height: 72px;
+      border-radius: 18px;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .voice-button {
+      width: 100%;
+      min-height: 52px;
+      font-size: 16px;
+    }
+    .home-drawer {
+      margin-top: 18px;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .home-drawer summary {
+      cursor: pointer;
+      color: var(--muted);
+      user-select: none;
+      list-style: none;
+      font-size: 14px;
+    }
+    .home-drawer summary::-webkit-details-marker { display: none; }
+    .home-drawer[open] summary { margin-bottom: 14px; }
     .timer { font-variant-numeric: tabular-nums; font-size: 60px; letter-spacing: .02em; text-align: center; margin: 8px 0 12px; font-weight: 700; color: var(--fg); }
     #saveStatus { font-variant-numeric: tabular-nums; }
     .muted { color: var(--muted); }
@@ -337,37 +383,40 @@
 
     <!-- ホーム画面 -->
     <section id="screen-home" class="screen active">
-      <div class="card">
-        <div class="row">
-          <input id="purposeInput" type="text" placeholder="思っていることを書いてみる" style="flex:1; min-width: 260px;" />
-          <button id="btnStart" class="primary">開始</button>
-          <button id="btnStartVoice" title="音声入力で始める">🎤 音声で開始</button>
+      <div class="card home-card">
+        <div class="home-intake">
+          <input id="purposeInput" class="home-input" type="text" placeholder="思っていることを書いてみる" />
+          <div class="home-actions">
+            <button id="btnStart" class="primary start-button">開始</button>
+            <button id="btnStartVoice" class="voice-button" title="音声入力で始める">🎤 音声で開始</button>
+          </div>
         </div>
-        <div class="spacer"></div>
-        <div class="row" id="modeChips">
-          <span class="muted">集中モード:</span>
-          <button id="mode5" class="chip" title="5分モード">5分</button>
-          <button id="mode15" class="chip" title="15分モード">15分</button>
-          <button id="mode20" class="chip" title="20分モード">20分</button>
-          <button id="mode25" class="chip active" title="25分モード">25分</button>
-        </div>
-        <div class="spacer"></div>
-        <div class="row" style="align-items:flex-start; gap: 10px;">
-          <span class="muted" style="margin-top: 8px;">通知:</span>
-          <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="oneMinAlert" /> 終了1分前に音声通知</label>
-        </div>
-        <!-- テスト用ヒントは非表示に（機能は存続） -->
-        <div class="spacer"></div>
-        <div class="row">
-          <input id="searchInput" type="search" placeholder="検索（タイトル・本文・#タグ）" style="flex:1; min-width: 240px;">
-          <button id="btnStarFilter" title="スターのみ切替">☆ すべて</button>
-        </div>
-        <div class="spacer"></div>
-        <div id="tagChips" class="chips"></div>
-        <div class="spacer"></div>
-        <div class="muted">保存ログ（自動保存 + 手動保存）</div>
-        <ul id="listSaved" class="list"></ul>
-        <div id="emptySaved" class="muted ghost">まだログはありません。</div>
+        <details class="home-drawer">
+          <summary>設定とログ</summary>
+          <div class="row" id="modeChips">
+            <span class="muted">集中モード:</span>
+            <button id="mode5" class="chip" title="5分モード">5分</button>
+            <button id="mode15" class="chip" title="15分モード">15分</button>
+            <button id="mode20" class="chip" title="20分モード">20分</button>
+            <button id="mode25" class="chip active" title="25分モード">25分</button>
+          </div>
+          <div class="spacer"></div>
+          <div class="row" style="align-items:flex-start; gap: 10px;">
+            <span class="muted" style="margin-top: 8px;">通知:</span>
+            <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="oneMinAlert" /> 終了1分前に音声通知</label>
+          </div>
+          <div class="spacer"></div>
+          <div class="row">
+            <input id="searchInput" type="search" placeholder="検索（タイトル・本文・#タグ）" style="flex:1; min-width: 240px;">
+            <button id="btnStarFilter" title="スターのみ切替">☆ すべて</button>
+          </div>
+          <div class="spacer"></div>
+          <div id="tagChips" class="chips"></div>
+          <div class="spacer"></div>
+          <div class="muted">保存ログ（自動保存 + 手動保存）</div>
+          <ul id="listSaved" class="list"></ul>
+          <div id="emptySaved" class="muted ghost">まだログはありません。</div>
+        </details>
       </div>
     </section>
 
