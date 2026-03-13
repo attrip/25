@@ -157,6 +157,8 @@
     #chatRow { display: flex; gap: 12px; align-items: center; flex-wrap: nowrap; width: 100%; }
     #chatSend { flex: none; }
     #chatInput { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 12px 14px; border-radius: 12px; font-size: 20px; line-height: 1.8; flex: 1 1 auto; min-width: 0; }
+    .prompt-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .prompt-row input { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 10px 12px; border-radius: 12px; font-size: 14px; flex: 1 1 320px; min-width: 220px; }
     .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); color: var(--fg); background: rgba(148,163,184,0.06); border-radius: 999px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
     .chip.active { border-color: rgba(96,165,250,.5); background: rgba(96,165,250,.12); }
     .copy-btn.is-copied {
@@ -348,6 +350,8 @@
         </div>
         <div class="spacer"></div>
         <div class="row">
+          <button id="btnImageTemplate">画像セット</button>
+          <a class="button-like" href="https://chatgpt.com/g/g-p-67b0f22ec8d881918f64383dce781732-image-generator" target="_blank" rel="noopener noreferrer" title="画像を作成">画像を作成</a>
           <button id="btnCopy" class="primary copy-btn">📋 コピー</button>
           <button id="btnSave">保存</button>
           <button id="btnPause" class="warn">一時停止</button>
@@ -355,6 +359,14 @@
           <button id="btnMic" title="話して入力">🎤 話して入力</button>
           <button id="btnFullscreen" title="集中モード切替">集中モード</button>
           <span id="saveStatus" class="muted" style="margin-left: auto;">未保存。入力すると3秒後に自動保存</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="prompt-row">
+          <input id="imagePromptInput" type="text" placeholder="画像用の文字列" />
+          <button id="btnPromptCopy">文字列をコピー</button>
+          <button id="btnPromptChatGPT">ChatGPT</button>
+          <button id="btnPromptGemini">Gemini</button>
+          <button id="btnPromptMidjourney">Midjourney</button>
         </div>
         <div class="spacer"></div>
         <div id="micStatus" class="muted" style="display:none">音声入力中…（内容は自動保存されます）</div>
@@ -419,6 +431,7 @@
   <footer class="footer" role="contentinfo">
     <div class="muted">外部AIツール</div>
     <div class="links">
+      <a href="https://chatgpt.com/g/g-p-67b0f22ec8d881918f64383dce781732-image-generator" target="_blank" rel="noopener noreferrer" title="画像を作成">画像を作成</a>
       <a href="https://chat.openai.com/" target="_blank" rel="noopener noreferrer" title="ChatGPT を開く">ChatGPT</a>
       <a href="https://gemini.google.com/" target="_blank" rel="noopener noreferrer" title="Gemini を開く">Gemini</a>
     </div>
@@ -518,6 +531,12 @@
     const editor = $('#editor');
     const chatInput = document.getElementById('chatInput');
     const chatSend = document.getElementById('chatSend');
+    const btnImageTemplate = $('#btnImageTemplate');
+    const imagePromptInput = $('#imagePromptInput');
+    const btnPromptCopy = $('#btnPromptCopy');
+    const btnPromptChatGPT = $('#btnPromptChatGPT');
+    const btnPromptGemini = $('#btnPromptGemini');
+    const btnPromptMidjourney = $('#btnPromptMidjourney');
     const btnCopy = $('#btnCopy');
     const focusMsg = document.querySelector('#screen-work .focus-msg');
     const purposeInput = $('#purposeInput');
@@ -836,6 +855,50 @@
     }
     function currentChars() {
       try { return (editor.value || '').replace(/\n/g,'').length; } catch { return 0; }
+    }
+    function buildImageSetTemplate() {
+      return [
+        '【画像セット】',
+        '',
+        '【画像1】',
+        '画像:',
+        '説明:',
+        '',
+        '【画像2】',
+        '画像:',
+        '説明:',
+        '',
+        '【画像3】',
+        '画像:',
+        '説明:',
+        '',
+        '【画像4】',
+        '画像:',
+        '説明:',
+        ''
+      ].join('\n');
+    }
+    function insertImageTemplate() {
+      const block = buildImageSetTemplate();
+      const current = editor.value || '';
+      editor.value = current.trim() ? `${current.replace(/\s*$/, '')}\n\n${block}` : block;
+      editor.selectionStart = editor.selectionEnd = editor.value.length;
+      try { editor.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+      try { editor.focus(); } catch {}
+      toastShow('画像セットを入れました');
+    }
+    function getImagePromptValue() {
+      return String(imagePromptInput && imagePromptInput.value || '').trim();
+    }
+    function openPromptTool(url, label) {
+      const prompt = getImagePromptValue();
+      if (!prompt) {
+        toastShow('画像用の文字列を入れてください');
+        try { if (imagePromptInput) imagePromptInput.focus(); } catch {}
+        return;
+      }
+      copyText(prompt, null, `${label} 用の文字列をコピーしました`);
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
     function typedChars() {
       return Math.max(0, currentChars() - baselineChars);
@@ -1301,7 +1364,12 @@
     $('#btnSkipBreak').onclick = () => { clearTimer(); toastShow('休憩をスキップしました'); showScreen('home'); };
 
     $('#btnSave').onclick = () => saveWork(false);
+    if (btnImageTemplate) btnImageTemplate.onclick = insertImageTemplate;
     if (btnCopy) btnCopy.onclick = () => { copyText(editor.value || '', btnCopy, '現在のメモをコピーしました'); };
+    if (btnPromptCopy) btnPromptCopy.onclick = () => { copyText(getImagePromptValue(), btnPromptCopy, '画像用の文字列をコピーしました'); };
+    if (btnPromptChatGPT) btnPromptChatGPT.onclick = () => { openPromptTool('https://chat.openai.com/', 'ChatGPT'); };
+    if (btnPromptGemini) btnPromptGemini.onclick = () => { openPromptTool('https://gemini.google.com/', 'Gemini'); };
+    if (btnPromptMidjourney) btnPromptMidjourney.onclick = () => { openPromptTool('https://www.midjourney.com/', 'Midjourney'); };
 
     // 読みやすさモード: ヘッダーのボタン
     const btnReadMode = $('#btnReadMode');
