@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700&family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700&family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@500;700&family=M+PLUS+1p:wght@500;700&family=Kosugi+Maru&family=BIZ+UDGothic:wght@700&display=swap" rel="stylesheet">
   <script>
     // 初期描画前にテーマ属性を設定してFOUCを抑制
     (function(){
@@ -183,6 +183,20 @@
     .image-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .image-toolbar label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
     .image-toolbar input[type="range"] { accent-color: var(--accent); }
+    .tool-chip.active { border-color: rgba(96,165,250,.5); background: rgba(96,165,250,.12); }
+    .file-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .file-row input[type="file"] {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .file-status { color: var(--muted); font-size: 13px; }
     .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); color: var(--fg); background: rgba(148,163,184,0.06); border-radius: 999px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
     .chip.active { border-color: rgba(96,165,250,.5); background: rgba(96,165,250,.12); }
     .copy-btn.is-copied {
@@ -395,7 +409,11 @@
             <canvas id="imageCanvas" width="1600" height="900"></canvas>
           </div>
           <div class="image-controls">
-            <input id="imageBackgroundInput" type="file" accept="image/*" />
+            <div class="file-row">
+              <label for="imageBackgroundInput" class="button-like">背景画像を選ぶ</label>
+              <input id="imageBackgroundInput" type="file" accept="image/*" />
+              <span id="imageBackgroundStatus" class="file-status">未選択</span>
+            </div>
             <textarea id="overlayTextInput" placeholder="重ねる文字"></textarea>
             <div class="image-toolbar">
               <label>フォント
@@ -403,6 +421,9 @@
                   <option value="Noto Sans JP" selected>Noto Sans JP</option>
                   <option value="Zen Kaku Gothic New">Zen Kaku Gothic</option>
                   <option value="Shippori Mincho">Shippori Mincho</option>
+                  <option value="BIZ UDGothic">BIZ UDGothic</option>
+                  <option value="M PLUS 1p">M PLUS 1p</option>
+                  <option value="Kosugi Maru">Kosugi Maru</option>
                 </select>
               </label>
               <input id="customFontInput" type="file" accept=".ttf,.otf,.woff,.woff2" />
@@ -427,6 +448,12 @@
                   <option value="solid">しっかり</option>
                 </select>
               </label>
+              <button id="toolPen" class="tool-chip">ペン</button>
+              <button id="toolArrow" class="tool-chip">矢印</button>
+              <label>注釈色
+                <input id="annotationColor" type="color" value="#ff3b30" />
+              </label>
+              <button id="btnClearAnnotations">注釈クリア</button>
               <label>サイズ
                 <input id="overlayFontSize" type="range" min="40" max="180" step="2" value="88" />
               </label>
@@ -601,9 +628,14 @@
     const btnImageTemplate = $('#btnImageTemplate');
     const imagePromptInput = $('#imagePromptInput');
     const imageBackgroundInput = $('#imageBackgroundInput');
+    const imageBackgroundStatus = $('#imageBackgroundStatus');
     const overlayTextInput = $('#overlayTextInput');
     const overlayPosition = $('#overlayPosition');
     const overlayBandStyle = $('#overlayBandStyle');
+    const toolPen = $('#toolPen');
+    const toolArrow = $('#toolArrow');
+    const annotationColor = $('#annotationColor');
+    const btnClearAnnotations = $('#btnClearAnnotations');
     const overlayFontSize = $('#overlayFontSize');
     const overlayFontFamily = $('#overlayFontFamily');
     const customFontInput = $('#customFontInput');
@@ -643,6 +675,9 @@
     let imageBackground = null;
     let exportDirHandle = null;
     let currentCanvasFont = 'Noto Sans JP';
+    let annotationTool = 'pen';
+    let annotationDraft = null;
+    const annotations = [];
     const SESS_KEY = 'focus_sessions_v1';
     let coachRotateId = null;
     let coachShownAt = 0;
@@ -1000,6 +1035,14 @@
       if (!exportDirStatus) return;
       exportDirStatus.textContent = name ? `保存先: ${name}` : '保存先未選択';
     }
+    function updateImageBackgroundStatus(name = '') {
+      if (!imageBackgroundStatus) return;
+      imageBackgroundStatus.textContent = name || '未選択';
+    }
+    function updateAnnotationToolUI() {
+      if (toolPen) toolPen.classList.toggle('active', annotationTool === 'pen');
+      if (toolArrow) toolArrow.classList.toggle('active', annotationTool === 'arrow');
+    }
     async function registerCustomFont(file) {
       if (!file || !('FontFace' in window)) return;
       const family = `UserFont${Date.now()}`;
@@ -1044,6 +1087,51 @@
       const dy = (height - drawHeight) / 2;
       ctx.drawImage(img, dx, dy, drawWidth, drawHeight);
     }
+    function drawArrow(ctx, from, to, color) {
+      const headLength = 28;
+      const angle = Math.atan2(to.y - from.y, to.x - from.x);
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(to.x, to.y);
+      ctx.lineTo(to.x - headLength * Math.cos(angle - Math.PI / 6), to.y - headLength * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(to.x - headLength * Math.cos(angle + Math.PI / 6), to.y - headLength * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+    }
+    function drawAnnotations(ctx) {
+      const all = annotationDraft ? annotations.concat(annotationDraft) : annotations;
+      all.forEach((item) => {
+        const color = item.color || '#ff3b30';
+        if (item.type === 'pen' && item.points && item.points.length > 1) {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 8;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(item.points[0].x, item.points[0].y);
+          for (let i = 1; i < item.points.length; i += 1) ctx.lineTo(item.points[i].x, item.points[i].y);
+          ctx.stroke();
+        }
+        if (item.type === 'arrow' && item.from && item.to) drawArrow(ctx, item.from, item.to, color);
+      });
+    }
+    function getCanvasPoint(event) {
+      if (!imageCanvas) return null;
+      const rect = imageCanvas.getBoundingClientRect();
+      const scaleX = imageCanvas.width / rect.width;
+      const scaleY = imageCanvas.height / rect.height;
+      return {
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY
+      };
+    }
     function renderImageCanvas() {
       if (!imageCanvas) return;
       const ctx = imageCanvas.getContext('2d');
@@ -1083,6 +1171,7 @@
         ctx.fillText(line, width / 2, y, width - 160);
       });
       ctx.shadowBlur = 0;
+      drawAnnotations(ctx);
     }
     function exportImageAsJpeg() {
       if (!imageCanvas) return;
@@ -1580,6 +1669,9 @@
     if (overlayTextInput) overlayTextInput.addEventListener('input', renderImageCanvas);
     if (overlayPosition) overlayPosition.addEventListener('change', renderImageCanvas);
     if (overlayBandStyle) overlayBandStyle.addEventListener('change', renderImageCanvas);
+    if (toolPen) toolPen.onclick = () => { annotationTool = 'pen'; updateAnnotationToolUI(); };
+    if (toolArrow) toolArrow.onclick = () => { annotationTool = 'arrow'; updateAnnotationToolUI(); };
+    if (btnClearAnnotations) btnClearAnnotations.onclick = () => { annotations.length = 0; annotationDraft = null; renderImageCanvas(); };
     if (overlayFontSize) overlayFontSize.addEventListener('input', renderImageCanvas);
     if (overlayFontFamily) overlayFontFamily.addEventListener('change', async () => {
       currentCanvasFont = overlayFontFamily.value || 'Noto Sans JP';
@@ -1601,9 +1693,11 @@
       const file = e.target && e.target.files && e.target.files[0];
       if (!file) {
         imageBackground = null;
+        updateImageBackgroundStatus('');
         renderImageCanvas();
         return;
       }
+      updateImageBackgroundStatus(file.name);
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
@@ -1623,6 +1717,35 @@
         updateExportDirStatus(exportDirHandle && exportDirHandle.name || '');
       } catch {}
     };
+    updateImageBackgroundStatus('');
+    updateAnnotationToolUI();
+    if (imageCanvas) {
+      imageCanvas.addEventListener('pointerdown', (e) => {
+        const point = getCanvasPoint(e);
+        if (!point) return;
+        if (annotationTool === 'pen') annotationDraft = { type: 'pen', color: annotationColor && annotationColor.value || '#ff3b30', points: [point] };
+        else annotationDraft = { type: 'arrow', color: annotationColor && annotationColor.value || '#ff3b30', from: point, to: point };
+        try { imageCanvas.setPointerCapture(e.pointerId); } catch {}
+        renderImageCanvas();
+      });
+      imageCanvas.addEventListener('pointermove', (e) => {
+        if (!annotationDraft) return;
+        const point = getCanvasPoint(e);
+        if (!point) return;
+        if (annotationDraft.type === 'pen') annotationDraft.points.push(point);
+        else annotationDraft.to = point;
+        renderImageCanvas();
+      });
+      const finishDraft = () => {
+        if (!annotationDraft) return;
+        if (annotationDraft.type === 'pen' && annotationDraft.points.length < 2) { annotationDraft = null; renderImageCanvas(); return; }
+        annotations.push(annotationDraft);
+        annotationDraft = null;
+        renderImageCanvas();
+      };
+      imageCanvas.addEventListener('pointerup', finishDraft);
+      imageCanvas.addEventListener('pointercancel', finishDraft);
+    }
     if (btnExportJpeg) btnExportJpeg.onclick = exportImageAsJpeg;
     updateExportDirStatus('');
     applyCanvasAspect();
