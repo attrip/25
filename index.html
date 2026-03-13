@@ -17,7 +17,7 @@
       } catch (e) {}
     })();
   </script>
-  <title>25分集中ミニアプリ</title>
+  <title>1人でポモドーロ</title>
   <style>
     :root {
       --bg: #0b1220;
@@ -317,7 +317,7 @@
     /* Reduced motion respect */
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   </style>
-  <meta name="description" content="25分集中 + 5分休憩を回す、ローカル保存対応のシンプルな集中支援アプリ" />
+  <meta name="description" content="1人で使うポモドーロとメモ、画像下書きに対応したシンプルな作業アプリ" />
 </head>
 <body>
   <div class="container">
@@ -327,7 +327,7 @@
           <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.2" />
           <circle cx="9.2" cy="9.2" r="1.2" fill="currentColor" />
         </svg>
-        <h1><a id="brandHome" href="#" title="ホームへ">25分集中ミニアプリ</a></h1>
+        <h1><a id="brandHome" href="#" title="ホームへ">1人でポモドーロ</a></h1>
         <span class="badge">BETA</span>
       </div>
       <div class="row">
@@ -340,7 +340,7 @@
       <div class="card">
         <div class="row">
           <input id="purposeInput" type="text" placeholder="今日やること（空欄でも開始OK）" style="flex:1; min-width: 260px;" />
-          <button id="btnStart" class="primary">25分を開始</button>
+          <button id="btnStart" class="primary">開始</button>
           <button id="btnStartVoice" title="音声入力で始める">🎤 音声で開始</button>
         </div>
         <div class="spacer"></div>
@@ -554,10 +554,10 @@
         if (btn) btn.classList.toggle('active', workMinutes === minutes);
       });
       const btn = document.getElementById('btnStart');
-      if (btn) btn.textContent = `${workMinutes}分を開始`;
+      if (btn) btn.textContent = '開始';
       const brand = document.getElementById('brandHome');
-      if (brand) brand.textContent = `${workMinutes}分集中ミニアプリ`;
-      try { document.title = `${workMinutes}分集中ミニアプリ`; } catch {}
+      if (brand) brand.textContent = '1人でポモドーロ';
+      try { document.title = '1人でポモドーロ'; } catch {}
       // プレビューのタイマー/メッセージも選択中の分数に揃える（作業中は触らない）
       try {
         if (typeof state === 'undefined' || state !== 'work') {
