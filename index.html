@@ -128,6 +128,11 @@
       visibility: visible;
       transition-delay: 0s, 0s, 0s;
     }
+    .toast.copy-toast {
+      background: rgba(56,189,248,0.14);
+      border-color: rgba(125,211,252,0.42);
+      box-shadow: 0 16px 44px rgba(8,47,73,0.22);
+    }
 
     /* Gentle coach tip */
     .coach { position: absolute; right: 16px; bottom: 16px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); background: rgba(148,163,184,0.06); font-size: 13px; letter-spacing: .01em; pointer-events: none; }
@@ -158,6 +163,32 @@
     .quick-guide-title { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
     .quick-points { display: flex; gap: 8px; flex-wrap: wrap; }
     .quick-points .chip { cursor: default; }
+    .copy-btn.is-copied {
+      border-color: rgba(125,211,252,0.72);
+      background: rgba(56,189,248,0.18);
+      box-shadow: 0 0 0 3px rgba(56,189,248,0.14), 0 14px 28px rgba(14,165,233,0.18);
+      transform: translateY(-1px) scale(1.01);
+    }
+    .copy-burst {
+      position: fixed;
+      width: 90px;
+      height: 90px;
+      margin-left: -45px;
+      margin-top: -45px;
+      border-radius: 999px;
+      pointer-events: none;
+      z-index: 1100;
+      background:
+        radial-gradient(circle, rgba(125,211,252,0.32) 0%, rgba(125,211,252,0.08) 42%, rgba(125,211,252,0) 72%),
+        radial-gradient(circle at 30% 35%, rgba(255,255,255,0.55) 0 8%, rgba(255,255,255,0) 26%),
+        radial-gradient(circle at 68% 62%, rgba(255,255,255,0.38) 0 6%, rgba(255,255,255,0) 22%);
+      animation: copy-burst 560ms cubic-bezier(.2,.8,.2,1) forwards;
+    }
+    @keyframes copy-burst {
+      0% { opacity: 0; transform: scale(0.55); }
+      35% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.45); }
+    }
 
     /* Purpose input (bigger, more prominent) */
     #purposeInput { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 12px 14px; border-radius: 12px; font-size: 18px; line-height: 1.4; }
@@ -278,11 +309,11 @@
         </div>
         <div class="spacer"></div>
         <div class="quick-guide">
-          <div class="quick-guide-title">すぐ始める: 1) 開始 2) 入力 or 話す 3) 自動で保存されます</div>
+          <div class="quick-guide-title">すぐ始める: 1) 開始 2) 話す 3) コピーして使う</div>
           <div class="quick-points">
             <span class="chip">🎤 音声入力対応</span>
+            <span class="chip">📋 ワンタップでコピー</span>
             <span class="chip">💾 3秒ごとに自動保存</span>
-            <span class="chip">🗂 保存ログから再開</span>
           </div>
         </div>
         <div class="spacer"></div>
@@ -317,7 +348,7 @@
     <section id="screen-work" class="screen">
       <div class="card">
         <div class="timer" id="timerWork">00:00</div>
-        <div class="focus-msg" aria-live="polite">入力でも、🎤音声でも書けます</div>
+        <div class="focus-msg" aria-live="polite">話してメモして、最後にコピー</div>
         <div id="calmMsg" class="muted" aria-live="polite" style="text-align:center; font-size:13px; margin-top:4px;">残り --:-- — 深呼吸して続けよう</div>
         <div id="metrics" class="muted" aria-live="polite" style="text-align:center; font-size:12px; margin-top:4px;">文字数 0 | WPM 0</div>
         <div id="insightStream" class="insight-stream" aria-hidden="true"></div>
@@ -330,7 +361,8 @@
         </div>
         <div class="spacer"></div>
         <div class="row">
-          <button id="btnSave" class="primary">今すぐ保存</button>
+          <button id="btnCopy" class="primary copy-btn">📋 コピー</button>
+          <button id="btnSave">保存</button>
           <button id="btnPause" class="warn">一時停止</button>
           <button id="btnReset" class="danger">リセット</button>
           <button id="btnMic" title="話して入力">🎤 話して入力</button>
@@ -499,6 +531,7 @@
     const editor = $('#editor');
     const chatInput = document.getElementById('chatInput');
     const chatSend = document.getElementById('chatSend');
+    const btnCopy = $('#btnCopy');
     const focusMsg = document.querySelector('#screen-work .focus-msg');
     const purposeInput = $('#purposeInput');
     const btnStartVoice = $('#btnStartVoice');
@@ -749,11 +782,59 @@
       return `${m}:${s}`;
     }
     let toastTimer = null;
-    function toastShow(msg, ms = 2500) {
+    function toastShow(msg, ms = 2500, kind = 'default') {
       toast.textContent = msg;
+      toast.classList.toggle('copy-toast', kind === 'copy');
       toast.classList.add('show');
       if (toastTimer) { try { clearTimeout(toastTimer); } catch {} }
-      toastTimer = setTimeout(() => { toast.classList.remove('show'); toastTimer = null; }, ms);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+        toast.classList.remove('copy-toast');
+        toastTimer = null;
+      }, ms);
+    }
+    function playCopyEffect(button) {
+      if (button) {
+        button.classList.remove('is-copied');
+        void button.offsetWidth;
+        button.classList.add('is-copied');
+        setTimeout(() => button.classList.remove('is-copied'), 560);
+        const rect = button.getBoundingClientRect();
+        const burst = document.createElement('span');
+        burst.className = 'copy-burst';
+        burst.style.left = `${rect.left + rect.width / 2}px`;
+        burst.style.top = `${rect.top + rect.height / 2}px`;
+        document.body.appendChild(burst);
+        setTimeout(() => burst.remove(), 620);
+      }
+    }
+    async function copyText(text, button = null, successMessage = 'コピーしました') {
+      const value = String(text || '');
+      if (!value.trim()) {
+        toastShow('コピーする内容がありません');
+        return false;
+      }
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(value);
+        } else {
+          const temp = document.createElement('textarea');
+          temp.value = value;
+          temp.setAttribute('readonly', '');
+          temp.style.position = 'fixed';
+          temp.style.left = '-9999px';
+          document.body.appendChild(temp);
+          temp.select();
+          document.execCommand('copy');
+          temp.remove();
+        }
+        playCopyEffect(button);
+        toastShow(successMessage, 2200, 'copy');
+        return true;
+      } catch {
+        toastShow('コピーに失敗しました');
+        return false;
+      }
     }
     function updateFocusFromEditor(force = false) {
       try {
@@ -761,7 +842,7 @@
         const finished = editor.value.indexOf('\n') !== -1 || force;
         if (focusMsg) {
           if (finished && first) focusMsg.textContent = first;
-          else focusMsg.textContent = '今は書くことだけ';
+          else focusMsg.textContent = '話してメモして、最後にコピー';
         }
       } catch {}
     }
@@ -945,6 +1026,11 @@
         // Actions (top-right)
         const actions = document.createElement('div');
         actions.className = 'entry-actions';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'icon-btn copy-btn';
+        copyBtn.textContent = '📋';
+        copyBtn.title = 'コピー';
+        copyBtn.onclick = async () => { await copyText(e.text || '', copyBtn, '保存メモをコピーしました'); };
         // star toggle
         const starBtn = document.createElement('button');
         starBtn.className = 'icon-btn star-btn' + (e.star ? ' is-starred' : '');
@@ -957,6 +1043,7 @@
         delBtn.textContent = '🗑';
         delBtn.title = '削除';
         delBtn.onclick = () => { if (confirm('削除しますか？')) { deleteEntry(e.id); refreshList2(); } };
+        actions.appendChild(copyBtn);
         actions.appendChild(starBtn);
         actions.appendChild(delBtn);
         li.appendChild(actions);
@@ -1219,6 +1306,7 @@
     $('#btnSkipBreak').onclick = () => { clearTimer(); toastShow('休憩をスキップしました'); showScreen('home'); };
 
     $('#btnSave').onclick = () => saveWork(false);
+    if (btnCopy) btnCopy.onclick = () => { copyText(editor.value || '', btnCopy, '現在のメモをコピーしました'); };
 
     // 読みやすさモード: ヘッダーのボタン
     const btnReadMode = $('#btnReadMode');
@@ -1504,6 +1592,10 @@
       if (editable || e.isComposing) return;
       if (e.key && e.key.toLowerCase() === 'm' && state === 'work' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault(); if (!srOn) startMic(); else stopMic();
+      }
+      if (e.key && e.key.toLowerCase() === 'c' && state === 'work' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        copyText(editor.value || '', btnCopy, '現在のメモをコピーしました');
       }
     });
 

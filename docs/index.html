@@ -9,7 +9,7 @@
       try {
         var KEY = 'focus_theme_v1_theme';
         var t = localStorage.getItem(KEY);
-        if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) t = 'light';
+        if (!t) t = 'light';
         if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
       } catch (e) {}
     })();
@@ -128,9 +128,27 @@
       visibility: visible;
       transition-delay: 0s, 0s, 0s;
     }
+    .toast.copy-toast {
+      background: rgba(56,189,248,0.14);
+      border-color: rgba(125,211,252,0.42);
+      box-shadow: 0 16px 44px rgba(8,47,73,0.22);
+    }
 
     /* Gentle coach tip */
     .coach { position: absolute; right: 16px; bottom: 16px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); background: rgba(148,163,184,0.06); font-size: 13px; letter-spacing: .01em; pointer-events: none; }
+    .insight-stream { position: absolute; left: 100%; margin-left: 28px; bottom: 34px; width: 210px; display: flex; flex-direction: column-reverse; gap: 16px; pointer-events: none; overflow: visible; }
+    .insight-bubble { opacity: 0; padding: 10px 14px; border-radius: 14px; border: 1px solid rgba(148, 190, 255, 0.55); background: rgba(96, 165, 250, 0.32); color: #0b1220; font-size: 15px; font-weight: 600; letter-spacing: .04em; text-transform: none; box-shadow: 0 12px 30px rgba(8,21,45,0.42); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); animation: insight-float 9s ease-in-out forwards; }
+    .insight-bubble strong { font-weight: 600; }
+    @keyframes insight-float {
+      0% { opacity: 0; transform: translateY(32px) translateX(20px) scale(0.94); }
+      18% { opacity: 1; transform: translateY(6px) translateX(0) scale(1); }
+      55% { opacity: 1; transform: translateY(-50px) translateX(-8px) scale(1.02); }
+      80% { opacity: 0.9; transform: translateY(-72px) translateX(-12px) scale(1.02); }
+      100% { opacity: 0; transform: translateY(-90px) translateX(-16px) scale(0.99); }
+    }
+    @media (max-width: 900px) {
+      .insight-stream { display: none; }
+    }
 
     /* Search and chips */
     input[type="search"] { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.06); color: var(--fg); padding: 10px 12px; border-radius: 10px; font-size: 14px; }
@@ -141,6 +159,36 @@
     #chatInput { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 12px 14px; border-radius: 12px; font-size: 20px; line-height: 1.8; flex: 1 1 auto; min-width: 0; }
     .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); color: var(--fg); background: rgba(148,163,184,0.06); border-radius: 999px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
     .chip.active { border-color: rgba(96,165,250,.5); background: rgba(96,165,250,.12); }
+    .quick-guide { border: 1px dashed var(--border); border-radius: 12px; padding: 10px 12px; background: rgba(148,163,184,0.04); }
+    .quick-guide-title { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    .quick-points { display: flex; gap: 8px; flex-wrap: wrap; }
+    .quick-points .chip { cursor: default; }
+    .copy-btn.is-copied {
+      border-color: rgba(125,211,252,0.72);
+      background: rgba(56,189,248,0.18);
+      box-shadow: 0 0 0 3px rgba(56,189,248,0.14), 0 14px 28px rgba(14,165,233,0.18);
+      transform: translateY(-1px) scale(1.01);
+    }
+    .copy-burst {
+      position: fixed;
+      width: 90px;
+      height: 90px;
+      margin-left: -45px;
+      margin-top: -45px;
+      border-radius: 999px;
+      pointer-events: none;
+      z-index: 1100;
+      background:
+        radial-gradient(circle, rgba(125,211,252,0.32) 0%, rgba(125,211,252,0.08) 42%, rgba(125,211,252,0) 72%),
+        radial-gradient(circle at 30% 35%, rgba(255,255,255,0.55) 0 8%, rgba(255,255,255,0) 26%),
+        radial-gradient(circle at 68% 62%, rgba(255,255,255,0.38) 0 6%, rgba(255,255,255,0) 22%);
+      animation: copy-burst 560ms cubic-bezier(.2,.8,.2,1) forwards;
+    }
+    @keyframes copy-burst {
+      0% { opacity: 0; transform: scale(0.55); }
+      35% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.45); }
+    }
 
     /* Purpose input (bigger, more prominent) */
     #purposeInput { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 12px 14px; border-radius: 12px; font-size: 18px; line-height: 1.4; }
@@ -255,21 +303,33 @@
     <section id="screen-home" class="screen active">
       <div class="card">
         <div class="row">
-          <input id="purposeInput" type="text" placeholder="一行で今日の目的を書く（例: 仕様書の初稿を仕上げる）" style="flex:1; min-width: 260px;" />
+          <input id="purposeInput" type="text" placeholder="今日やること（空欄でも開始OK）" style="flex:1; min-width: 260px;" />
           <button id="btnStart" class="primary">25分を開始</button>
+          <button id="btnStartVoice" title="音声入力で始める">🎤 音声で開始</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="quick-guide">
+          <div class="quick-guide-title">すぐ始める: 1) 開始 2) 話す 3) コピーして使う</div>
+          <div class="quick-points">
+            <span class="chip">🎤 音声入力対応</span>
+            <span class="chip">📋 ワンタップでコピー</span>
+            <span class="chip">💾 3秒ごとに自動保存</span>
+          </div>
         </div>
         <div class="spacer"></div>
         <div class="row" id="modeChips">
           <span class="muted">集中モード:</span>
           <button id="mode5" class="chip" title="5分モード">5分</button>
           <button id="mode15" class="chip" title="15分モード">15分</button>
+          <button id="mode20" class="chip" title="20分モード">20分</button>
           <button id="mode25" class="chip active" title="25分モード">25分</button>
         </div>
         <div class="spacer"></div>
         <div class="row" style="align-items:flex-start; gap: 10px;">
-          <span class="muted" style="margin-top: 8px;">お知らせ:</span>
-          <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="oneMinAlert" /> 1分前に音声でお知らせ</label>
+          <span class="muted" style="margin-top: 8px;">通知:</span>
+          <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="oneMinAlert" /> 終了1分前に音声通知</label>
         </div>
+        <!-- テスト用ヒントは非表示に（機能は存続） -->
         <div class="spacer"></div>
         <div class="row">
           <input id="searchInput" type="search" placeholder="検索（タイトル・本文・#タグ）" style="flex:1; min-width: 240px;">
@@ -278,9 +338,9 @@
         <div class="spacer"></div>
         <div id="tagChips" class="chips"></div>
         <div class="spacer"></div>
-        <div class="muted">過去の保存テキスト</div>
+        <div class="muted">保存ログ（自動保存 + 手動保存）</div>
         <ul id="listSaved" class="list"></ul>
-        <div id="emptySaved" class="muted ghost">まだ保存されたテキストはありません。</div>
+        <div id="emptySaved" class="muted ghost">まだログはありません。開始すると自動で保存されます。</div>
       </div>
     </section>
 
@@ -288,11 +348,12 @@
     <section id="screen-work" class="screen">
       <div class="card">
         <div class="timer" id="timerWork">00:00</div>
-        <div class="focus-msg" aria-live="polite">今は書くことだけ</div>
+        <div class="focus-msg" aria-live="polite">話してメモして、最後にコピー</div>
         <div id="calmMsg" class="muted" aria-live="polite" style="text-align:center; font-size:13px; margin-top:4px;">残り --:-- — 深呼吸して続けよう</div>
         <div id="metrics" class="muted" aria-live="polite" style="text-align:center; font-size:12px; margin-top:4px;">文字数 0 | WPM 0</div>
+        <div id="insightStream" class="insight-stream" aria-hidden="true"></div>
         <div class="spacer"></div>
-        <textarea id="editor" placeholder="今考えていることを、そのまま書き始めましょう。装飾や整形は後で大丈夫です。"></textarea>
+        <textarea id="editor" placeholder="そのまま入力、または「🎤 話して入力」でスタート。内容は自動保存されます。"></textarea>
         <div class="spacer"></div>
         <div class="row" id="chatRow">
           <input id="chatInput" type="text" placeholder="ここに1行入力してEnterで追記" />
@@ -300,21 +361,22 @@
         </div>
         <div class="spacer"></div>
         <div class="row">
-          <button id="btnSave" class="primary">保存</button>
+          <button id="btnCopy" class="primary copy-btn">📋 コピー</button>
+          <button id="btnSave">保存</button>
           <button id="btnPause" class="warn">一時停止</button>
           <button id="btnReset" class="danger">リセット</button>
-          <button id="btnMic" title="音声入力">🎤 音声入力開始</button>
+          <button id="btnMic" title="話して入力">🎤 話して入力</button>
           <button id="btnFullscreen" title="集中モード切替">集中モード</button>
           <span id="saveStatus" class="muted" style="margin-left: auto;"></span>
         </div>
         <div class="spacer"></div>
-        <div id="micStatus" class="muted" style="display:none">音声入力中…</div>
+        <div id="micStatus" class="muted" style="display:none">音声入力中…（内容は自動保存されます）</div>
         <div id="micInterim" class="muted" style="display:none"></div>
         <div id="coach" class="coach" style="display:none" aria-live="polite"></div>
         <div id="micOverlay" class="mic-overlay" aria-hidden="true">
           <div class="mic-panel">
-            <div class="mic-title">音声入力</div>
-            <button id="micOverlayStart" class="primary" style="min-width:200px; font-size:16px;">🎤 音声入力を開始</button>
+            <div class="mic-title">🎤 話して入力できます</div>
+            <button id="micOverlayStart" class="primary" style="min-width:200px; font-size:16px;">マイクを許可して開始</button>
             <div style="margin-top:8px; display:flex; gap:8px; align-items:center; justify-content:center;">
               <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="micAuto" /> 次回から自動で開始</label>
               <label class="muted" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" id="micPersist" /> 自動再開を維持</label>
@@ -380,18 +442,23 @@
 
   <script>
     // 設定
-    // 集中モード（5 / 15 / 25分）
+    // 集中モード（5 / 15 / 20 / 25分）
     const MODE_KEY = 'focus_mode_minutes_v1';
     const mode5Btn = document.getElementById('mode5');
     const mode15Btn = document.getElementById('mode15');
+    const mode20Btn = document.getElementById('mode20');
     const mode25Btn = document.getElementById('mode25');
+    const modeButtons = [
+      { btn: mode5Btn, minutes: 5 },
+      { btn: mode15Btn, minutes: 15 },
+      { btn: mode20Btn, minutes: 20 },
+      { btn: mode25Btn, minutes: 25 }
+    ];
     let workMinutes = (() => { try { return parseInt(localStorage.getItem(MODE_KEY)||'25',10)||25; } catch { return 25; } })();
     function updateModeUI() {
-      if (mode5Btn && mode15Btn && mode25Btn) {
-        mode5Btn.classList.toggle('active', workMinutes === 5);
-        mode15Btn.classList.toggle('active', workMinutes === 15);
-        mode25Btn.classList.toggle('active', workMinutes === 25);
-      }
+      modeButtons.forEach(({ btn, minutes }) => {
+        if (btn) btn.classList.toggle('active', workMinutes === minutes);
+      });
       const btn = document.getElementById('btnStart');
       if (btn) btn.textContent = `${workMinutes}分を開始`;
       const brand = document.getElementById('brandHome');
@@ -410,6 +477,7 @@
     }
     if (mode5Btn) mode5Btn.onclick = () => { workMinutes = 5; try{localStorage.setItem(MODE_KEY,'5');}catch{} updateModeUI(); };
     if (mode15Btn) mode15Btn.onclick = () => { workMinutes = 15; try{localStorage.setItem(MODE_KEY,'15');}catch{} updateModeUI(); };
+    if (mode20Btn) mode20Btn.onclick = () => { workMinutes = 20; try{localStorage.setItem(MODE_KEY,'20');}catch{} updateModeUI(); };
     if (mode25Btn) mode25Btn.onclick = () => { workMinutes = 25; try{localStorage.setItem(MODE_KEY,'25');}catch{} updateModeUI(); };
     const BREAK_MIN = 5;
     // 開発確認を早めに: URLに ?dev=1 で 25秒/5秒 に短縮
@@ -421,13 +489,19 @@
     const ONE_MIN_ALERT_THRESHOLD = ALERT_TEST ? 5 : 60; // 隠しテストモードで短縮
     const ONE_MIN_ALERT_KEY = 'focus_one_min_alert_enabled_v1';
 
+    let oneMinuteAlertEnabled = (() => { try { const v = localStorage.getItem(ONE_MIN_ALERT_KEY); return v == null ? true : v === '1'; } catch { return true; } })();
+    // アナウンス文言は固定（カスタマイズなし）
+
     // 状態
     let state = 'home'; // 'home' | 'work' | 'break'
     let timerId = null;
     let remaining = 0;
-    // 1分前アナウンス用のセッション情報
+    // 1分前アナウンス/経過1分メッセージ用のセッション情報
     let sessionTotalSec = 0;
     let oneMinuteAnnounced = false;
+    let insightStreamActive = false;
+    let insightStreamTimer = null;
+    let insightPromptIndex = 0;
     let paused = false;
     let currentEntryId = null; // 編集中のID（新規なら null）
     let debounceSaveTimer = null;
@@ -442,18 +516,25 @@
     // アラート設定UI
     const oneMinAlertEl = $('#oneMinAlert');
 
-    // 設定読み込み/初期化
-    let oneMinuteAlertEnabled = (() => { try { const v = localStorage.getItem(ONE_MIN_ALERT_KEY); return v == null ? true : v === '1'; } catch { return true; } })();
-    try { if (oneMinAlertEl) oneMinAlertEl.checked = !!oneMinuteAlertEnabled; } catch {}
+    // 設定UIの初期化
+    try {
+      if (oneMinAlertEl) oneMinAlertEl.checked = !!oneMinuteAlertEnabled;
+      // 文言カスタマイズUIは削除
+    } catch {}
+
+    // 設定UIのイベント
     if (oneMinAlertEl) oneMinAlertEl.onchange = () => {
       oneMinuteAlertEnabled = !!oneMinAlertEl.checked;
       try { localStorage.setItem(ONE_MIN_ALERT_KEY, oneMinuteAlertEnabled ? '1' : '0'); } catch {}
     };
+    // 文言カスタマイズUIは削除
     const editor = $('#editor');
     const chatInput = document.getElementById('chatInput');
     const chatSend = document.getElementById('chatSend');
+    const btnCopy = $('#btnCopy');
     const focusMsg = document.querySelector('#screen-work .focus-msg');
     const purposeInput = $('#purposeInput');
+    const btnStartVoice = $('#btnStartVoice');
     const listSaved = $('#listSaved');
     const emptySaved = $('#emptySaved');
     const toast = $('#toast');
@@ -464,6 +545,13 @@
     const metricsEl = document.getElementById('metrics');
     const coachEl = $('#coach');
     const coachTips = ['誰に？', 'いつまでに？', '何を？', 'なぜ今？', '成功条件は？'];
+    const insightPrompts = [
+      'なぜ今これを書く？背景は？',
+      '普通に考えるとどうなる？例は？',
+      '本質はどこ？一言で言うと？',
+      '逆から見ると何が見える？',
+      '一番の決め手・制約は何？'
+    ];
     let lastInputAt = Date.now();
     let sessionStartAt = 0;
     let baselineChars = 0;
@@ -503,6 +591,45 @@
       }, 3500);
       // 自動的に一定時間後に隠す（過干渉を避ける）
       setTimeout(() => hideCoach(), coachTips.length * 3500 + 1000);
+    }
+
+    function spawnInsightBubble(text) {
+      const container = document.getElementById('insightStream');
+      if (!container) return;
+      const bubble = document.createElement('div');
+      bubble.className = 'insight-bubble';
+      bubble.textContent = text;
+      container.appendChild(bubble);
+      setTimeout(() => {
+        if (bubble.parentNode === container) container.removeChild(bubble);
+      }, 6000);
+    }
+
+    function startInsightStream() {
+      if (insightStreamActive) return;
+      const container = document.getElementById('insightStream');
+      if (!container) return;
+      insightStreamActive = true;
+      const push = () => {
+        if (!insightStreamActive) return;
+        const text = insightPrompts[insightPromptIndex % insightPrompts.length];
+        insightPromptIndex += 1;
+        spawnInsightBubble(text);
+      };
+      push();
+      if (insightStreamTimer) { try { clearInterval(insightStreamTimer); } catch {} }
+      insightStreamTimer = setInterval(push, 8000);
+    }
+
+    function stopInsightStream(clearBubbles = true) {
+      insightStreamActive = false;
+      if (insightStreamTimer) {
+        try { clearInterval(insightStreamTimer); } catch {}
+        insightStreamTimer = null;
+      }
+      if (!clearBubbles) return;
+      const container = document.getElementById('insightStream');
+      if (container) container.innerHTML = '';
     }
 
     // 読みやすさモード
@@ -614,7 +741,7 @@
         const saved = localStorage.getItem(THEME_KEY);
         if (saved === 'light' || saved === 'dark') return saved;
       } catch {}
-      return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+      return 'light';
     })();
 
     function applyTheme(theme) {
@@ -645,7 +772,7 @@
       if (name === 'home') scrHome.classList.add('active');
       if (name === 'work') scrWork.classList.add('active');
       if (name === 'break') scrBreak.classList.add('active');
-      if (name !== 'work') { stopMic(); hideCoach(); } // 画面遷移時に音声入力を停止/コーチ非表示
+      if (name !== 'work') { stopMic(); hideCoach(); stopInsightStream(); } // 画面遷移時に音声入力を停止/コーチ非表示
     }
 
     // ユーティリティ
@@ -655,11 +782,59 @@
       return `${m}:${s}`;
     }
     let toastTimer = null;
-    function toastShow(msg, ms = 2500) {
+    function toastShow(msg, ms = 2500, kind = 'default') {
       toast.textContent = msg;
+      toast.classList.toggle('copy-toast', kind === 'copy');
       toast.classList.add('show');
       if (toastTimer) { try { clearTimeout(toastTimer); } catch {} }
-      toastTimer = setTimeout(() => { toast.classList.remove('show'); toastTimer = null; }, ms);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+        toast.classList.remove('copy-toast');
+        toastTimer = null;
+      }, ms);
+    }
+    function playCopyEffect(button) {
+      if (button) {
+        button.classList.remove('is-copied');
+        void button.offsetWidth;
+        button.classList.add('is-copied');
+        setTimeout(() => button.classList.remove('is-copied'), 560);
+        const rect = button.getBoundingClientRect();
+        const burst = document.createElement('span');
+        burst.className = 'copy-burst';
+        burst.style.left = `${rect.left + rect.width / 2}px`;
+        burst.style.top = `${rect.top + rect.height / 2}px`;
+        document.body.appendChild(burst);
+        setTimeout(() => burst.remove(), 620);
+      }
+    }
+    async function copyText(text, button = null, successMessage = 'コピーしました') {
+      const value = String(text || '');
+      if (!value.trim()) {
+        toastShow('コピーする内容がありません');
+        return false;
+      }
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(value);
+        } else {
+          const temp = document.createElement('textarea');
+          temp.value = value;
+          temp.setAttribute('readonly', '');
+          temp.style.position = 'fixed';
+          temp.style.left = '-9999px';
+          document.body.appendChild(temp);
+          temp.select();
+          document.execCommand('copy');
+          temp.remove();
+        }
+        playCopyEffect(button);
+        toastShow(successMessage, 2200, 'copy');
+        return true;
+      } catch {
+        toastShow('コピーに失敗しました');
+        return false;
+      }
     }
     function updateFocusFromEditor(force = false) {
       try {
@@ -667,7 +842,7 @@
         const finished = editor.value.indexOf('\n') !== -1 || force;
         if (focusMsg) {
           if (finished && first) focusMsg.textContent = first;
-          else focusMsg.textContent = '今は書くことだけ';
+          else focusMsg.textContent = '話してメモして、最後にコピー';
         }
       } catch {}
     }
@@ -851,6 +1026,11 @@
         // Actions (top-right)
         const actions = document.createElement('div');
         actions.className = 'entry-actions';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'icon-btn copy-btn';
+        copyBtn.textContent = '📋';
+        copyBtn.title = 'コピー';
+        copyBtn.onclick = async () => { await copyText(e.text || '', copyBtn, '保存メモをコピーしました'); };
         // star toggle
         const starBtn = document.createElement('button');
         starBtn.className = 'icon-btn star-btn' + (e.star ? ' is-starred' : '');
@@ -863,6 +1043,7 @@
         delBtn.textContent = '🗑';
         delBtn.title = '削除';
         delBtn.onclick = () => { if (confirm('削除しますか？')) { deleteEntry(e.id); refreshList2(); } };
+        actions.appendChild(copyBtn);
         actions.appendChild(starBtn);
         actions.appendChild(delBtn);
         li.appendChild(actions);
@@ -918,6 +1099,8 @@
       remaining = total;
       sessionTotalSec = total;
       oneMinuteAnnounced = false;
+      stopInsightStream();
+      insightPromptIndex = 0;
       timerWork.textContent = fmt(remaining);
       const cm = document.getElementById('calmMsg');
       if (cm) cm.textContent = `残り ${fmt(remaining)} — 深呼吸して続けよう`;
@@ -930,6 +1113,7 @@
       const fm = document.querySelector('#screen-work .focus-msg');
       if (fm) fm.style.display = ''; // セッション開始時に再表示
       focusFoldTimer = setTimeout(() => { if (fm) fm.style.display = 'none'; }, 30000);
+      if (saveStatusEl) saveStatusEl.textContent = '入力中は3秒ごとに自動保存';
       updateFocusFromEditor();
       if (startCountdown) runCountdown('work');
     }
@@ -942,6 +1126,7 @@
       sessionTotalSec = BREAK_SEC;
       oneMinuteAnnounced = false;
       timerBreak.textContent = fmt(remaining);
+      stopInsightStream();
       runCountdown('break');
     }
 
@@ -976,42 +1161,34 @@
       }
     }
 
-    // 簡易TTS（Web Speech API）。利用不可ならビープにフォールバック。
-    function speak(text) {
-      try {
-        const synth = window.speechSynthesis;
-        if (synth && typeof SpeechSynthesisUtterance !== 'undefined') {
-          const uttr = new SpeechSynthesisUtterance(text);
-          uttr.lang = 'ja-JP';
-          uttr.rate = 1.0;
-          uttr.pitch = 1.0;
-          synth.speak(uttr);
-          return;
-        }
-      } catch (e) { /* noop */ }
-      // フォールバック: ビープ音
-      playBeep();
-    }
-
-
     function runCountdown(kind) {
       const tick = () => {
         if (paused) return;
         remaining -= 1;
-        if (kind === 'work') { const r = Math.max(0, remaining); timerWork.textContent = fmt(r); updateCalm(r); updateMetrics(); }
+        if (kind === 'work') {
+          const r = Math.max(0, remaining);
+          timerWork.textContent = fmt(r);
+          updateCalm(r);
+          updateMetrics();
+          if (!insightStreamActive && sessionTotalSec >= 120 && r <= 120) {
+            startInsightStream();
+          }
+        }
         if (kind === 'break') timerBreak.textContent = fmt(Math.max(0, remaining));
 
-        // 終了1分前の音声アナウンス（セッションあたり一度だけ）
+        // 終了1分前の通知（セッションあたり一度だけ、無音）
         try {
           const r = Math.max(0, remaining);
           const threshold = ONE_MIN_ALERT_THRESHOLD;
           if (oneMinuteAlertEnabled && !oneMinuteAnnounced && sessionTotalSec >= threshold && r === threshold) {
             oneMinuteAnnounced = true;
-            speak(kind === 'work' ? '残り1分です。あと少し集中しましょう。' : '休憩はあと1分で終わります。');
+            toastShow(kind === 'work' ? '残り1分です。' : '休憩はあと1分で終わります。');
           }
         } catch (e) { /* noop */ }
+
         if (remaining <= 0) {
           clearTimer();
+          stopInsightStream();
           playBeep();
           if (kind === 'work') {
             saveWork(true); // Auto-save here
@@ -1111,6 +1288,10 @@
     }
 
     $('#btnStart').onclick = startNewSession;
+    if (btnStartVoice) btnStartVoice.onclick = () => {
+      startNewSession();
+      setTimeout(() => { try { attemptAutoMicStart(); } catch {} }, 80);
+    };
 
     if (purposeInput) {
       purposeInput.addEventListener('keydown', (e) => {
@@ -1125,6 +1306,7 @@
     $('#btnSkipBreak').onclick = () => { clearTimer(); toastShow('休憩をスキップしました'); showScreen('home'); };
 
     $('#btnSave').onclick = () => saveWork(false);
+    if (btnCopy) btnCopy.onclick = () => { copyText(editor.value || '', btnCopy, '現在のメモをコピーしました'); };
 
     // 読みやすさモード: ヘッダーのボタン
     const btnReadMode = $('#btnReadMode');
@@ -1163,6 +1345,30 @@
     const srSupported = !!SR;
     let sr = null;
     let srOn = false;
+    const MIC_MAX_MINUTES = 25; // fail-safe run window
+    let micDeadlineAt = 0;
+    let micKeepAliveId = null;
+    const AUTO_BREAK_THRESHOLD = 42; // 1行が長すぎないよう自動改行
+    const AUTO_BREAK_PUNCT = /[。！？!?]$/;
+
+    function startMicKeepAlive() {
+      if (micKeepAliveId) return;
+      micKeepAliveId = setInterval(() => {
+        if (!srOn || state !== 'work') return;
+        if (micDeadlineAt && Date.now() > micDeadlineAt) {
+          toastShow('音声入力は25分でリフレッシュします');
+          stopMic();
+          return;
+        }
+        if (sr && !sr.rec) {
+          try { sr.start(); } catch {}
+        }
+      }, 4000);
+    }
+    function stopMicKeepAlive() {
+      if (micKeepAliveId) { clearInterval(micKeepAliveId); micKeepAliveId = null; }
+      micDeadlineAt = 0;
+    }
 
     class SimpleSR {
       constructor({ lang = 'ja-JP', onFinal, onInterim, onStart, onEnd, onError, autoRestart = true }) {
@@ -1197,7 +1403,8 @@
         };
         r.onerror = (e) => {
           const er = (e && e.error) ? e.error : 'unknown';
-          if (['not-allowed','service-not-allowed','audio-capture','network'].includes(er)) { this._stopping = true; }
+          const fatalErrors = ['not-allowed','service-not-allowed','audio-capture'];
+          if (fatalErrors.includes(er)) this._stopping = true;
           this.onError && this.onError(er);
         };
         r.onend = () => {
@@ -1222,18 +1429,33 @@
 
     function appendToEditor(text) {
       if (!text) return;
-      const last = editor.value.slice(-1);
-      const startsWithPunctOrNl = /^[\n、。！？!?））」』】\s]/.test(text);
       let joiner = '';
+      const startsWithPunctOrNl = /^[\n、。！？!?））」』】\s]/.test(text);
       if (editor.value && !editor.value.endsWith('\n')) {
         if (startsWithPunctOrNl) {
-          if (last === ' ') editor.value = editor.value.slice(0, -1);
+          if (editor.value.endsWith(' ')) editor.value = editor.value.slice(0, -1);
         } else {
           joiner = ' ';
         }
       }
-      editor.value = editor.value + joiner + text;
+      const beforeInsert = editor.value;
+      editor.value = beforeInsert + joiner + text;
+      maybeAutoBreak(text);
       editor.selectionStart = editor.selectionEnd = editor.value.length;
+    }
+
+    function maybeAutoBreak(insertedText) {
+      if (!insertedText || insertedText.includes('\n')) return;
+      const trimmed = insertedText.trim();
+      if (!trimmed) return;
+      if (!AUTO_BREAK_PUNCT.test(trimmed.slice(-1))) return;
+      const current = editor.value;
+      const lastBreak = current.lastIndexOf('\n');
+      const segmentStart = (lastBreak === -1) ? 0 : lastBreak + 1;
+      const segment = current.slice(segmentStart).trimEnd();
+      if (segment.length < AUTO_BREAK_THRESHOLD) return;
+      if (/\n\s*$/.test(current)) return;
+      editor.value = current.replace(/\s*$/, '') + '\n\n';
     }
 
     function normalizeDictation(s) {
@@ -1256,12 +1478,15 @@
 
     function updateMicUI() {
       const btn = $('#btnMic');
+      if (!btn) return;
       if (!srSupported) {
+        btn.textContent = '🎤 このブラウザは非対応';
         btn.disabled = true;
         btn.title = 'このブラウザは音声入力に対応していません';
         return;
       }
-      btn.textContent = srOn ? '🎤 音声入力停止' : '🎤 音声入力開始';
+      btn.textContent = srOn ? '🎤 話して入力を停止' : '🎤 話して入力';
+      btn.disabled = false;
     }
 
     function startMic() {
@@ -1269,12 +1494,23 @@
       if (!sr) sr = new SimpleSR({
         autoRestart: (function(){ try { const v = localStorage.getItem(MIC_PERSIST_KEY); return (v === null || v === '1'); } catch { return true; } })(),
         lang: 'ja-JP',
-        onStart: () => { srOn = true; try{ localStorage.setItem(MIC_OK_KEY,'1'); }catch{} micStatus.style.display = 'block'; micStatus.textContent = '音声入力中…'; updateMicUI(); },
+        onStart: () => { srOn = true; try{ localStorage.setItem(MIC_OK_KEY,'1'); }catch{} micStatus.style.display = 'block'; micStatus.textContent = '音声入力中…（内容は自動保存されます）'; updateMicUI(); },
         onEnd: () => { },
         onInterim: (tmp) => { if (tmp) { micInterim.style.display = 'block'; micInterim.textContent = '聞き取り中: ' + tmp; } else { micInterim.style.display = 'none'; } },
         onFinal: (txt) => appendToEditor(normalizeDictation(txt)),
-        onError: (err) => { const fatal = ['not-allowed','service-not-allowed','audio-capture','network']; if (err === 'no-speech' || err === 'aborted') return; if (fatal.includes(err)) { try { stopMic(); } catch {} srOn = false; updateMicUI(); toastShow('マイクエラー: ' + err); return; } srOn = false; updateMicUI(); toastShow('音声入力エラー: ' + err); }
+        onError: (err) => {
+          const fatal = ['not-allowed','service-not-allowed','audio-capture'];
+          if (err === 'no-speech' || err === 'aborted') return;
+          if (err === 'network') { toastShow('音声入力の接続を再確立しています…'); return; }
+          if (fatal.includes(err)) { try { stopMic(); } catch {} srOn = false; updateMicUI(); toastShow('マイクエラー: ' + err); return; }
+          srOn = false;
+          updateMicUI();
+          toastShow('音声入力エラー: ' + err);
+        }
       });
+      const limitMinutes = Math.min(MIC_MAX_MINUTES, Math.max(1, workMinutes || MIC_MAX_MINUTES));
+      micDeadlineAt = Date.now() + limitMinutes * 60 * 1000;
+      startMicKeepAlive();
       try { sr.start(); editor.focus(); } catch (e) { toastShow('音声入力を開始できませんでした'); }
       updateMicUI();
     }
@@ -1284,6 +1520,7 @@
       micStatus.style.display = 'none';
       micInterim.style.display = 'none';
       updateMicUI();
+      stopMicKeepAlive();
     }
     // 入力監視: 無操作でコーチ表示 & 自動保存
     editor.addEventListener('input', () => {
@@ -1355,6 +1592,10 @@
       if (editable || e.isComposing) return;
       if (e.key && e.key.toLowerCase() === 'm' && state === 'work' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault(); if (!srOn) startMic(); else stopMic();
+      }
+      if (e.key && e.key.toLowerCase() === 'c' && state === 'work' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        copyText(editor.value || '', btnCopy, '現在のメモをコピーしました');
       }
     });
 
