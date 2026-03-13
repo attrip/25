@@ -406,7 +406,7 @@
         <div class="spacer"></div>
         <div class="image-board">
           <div class="image-stage">
-            <canvas id="imageCanvas" width="1600" height="900"></canvas>
+            <canvas id="imageCanvas" width="1600" height="900" tabindex="0"></canvas>
           </div>
           <div class="image-controls">
             <div class="file-row">
@@ -686,6 +686,7 @@
     let annotationTool = 'pen';
     let annotationDraft = null;
     const annotations = [];
+    const annotationRedoStack = [];
     const SESS_KEY = 'focus_sessions_v1';
     let coachRotateId = null;
     let coachShownAt = 0;
@@ -1076,6 +1077,24 @@
     function updateAnnotationToolUI() {
       if (toolPen) toolPen.classList.toggle('active', annotationTool === 'pen');
       if (toolArrow) toolArrow.classList.toggle('active', annotationTool === 'arrow');
+    }
+    function pushAnnotation(item) {
+      annotations.push(item);
+      annotationRedoStack.length = 0;
+    }
+    function undoAnnotation() {
+      if (!annotations.length) return false;
+      annotationRedoStack.push(annotations.pop());
+      renderImageCanvas();
+      toastShow('注釈を戻しました');
+      return true;
+    }
+    function redoAnnotation() {
+      if (!annotationRedoStack.length) return false;
+      annotations.push(annotationRedoStack.pop());
+      renderImageCanvas();
+      toastShow('注釈をやり直しました');
+      return true;
     }
     async function registerCustomFont(file) {
       if (!file || !('FontFace' in window)) return;
@@ -1741,7 +1760,12 @@
     if (overlayBandStyle) overlayBandStyle.addEventListener('change', renderImageCanvas);
     if (toolPen) toolPen.onclick = () => { annotationTool = 'pen'; updateAnnotationToolUI(); };
     if (toolArrow) toolArrow.onclick = () => { annotationTool = 'arrow'; updateAnnotationToolUI(); };
-    if (btnClearAnnotations) btnClearAnnotations.onclick = () => { annotations.length = 0; annotationDraft = null; renderImageCanvas(); };
+    if (btnClearAnnotations) btnClearAnnotations.onclick = () => {
+      annotations.length = 0;
+      annotationRedoStack.length = 0;
+      annotationDraft = null;
+      renderImageCanvas();
+    };
     if (overlayFontSize) overlayFontSize.addEventListener('input', renderImageCanvas);
     if (overlayFontFamily) overlayFontFamily.addEventListener('change', async () => {
       currentCanvasFont = overlayFontFamily.value || 'Noto Sans JP';
@@ -1795,6 +1819,7 @@
       imageCanvas.addEventListener('pointerdown', (e) => {
         const point = getCanvasPoint(e);
         if (!point) return;
+        try { imageCanvas.focus(); } catch {}
         if (annotationTool === 'pen') annotationDraft = { type: 'pen', color: annotationColor && annotationColor.value || '#ff3b30', points: [point] };
         else annotationDraft = { type: 'arrow', color: annotationColor && annotationColor.value || '#ff3b30', from: point, to: point };
         try { imageCanvas.setPointerCapture(e.pointerId); } catch {}
@@ -1811,12 +1836,19 @@
       const finishDraft = () => {
         if (!annotationDraft) return;
         if (annotationDraft.type === 'pen' && annotationDraft.points.length < 2) { annotationDraft = null; renderImageCanvas(); return; }
-        annotations.push(annotationDraft);
+        pushAnnotation(annotationDraft);
         annotationDraft = null;
         renderImageCanvas();
       };
       imageCanvas.addEventListener('pointerup', finishDraft);
       imageCanvas.addEventListener('pointercancel', finishDraft);
+      imageCanvas.addEventListener('keydown', (e) => {
+        const isUndo = (e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'z';
+        if (!isUndo) return;
+        e.preventDefault();
+        if (e.shiftKey) redoAnnotation();
+        else undoAnnotation();
+      });
     }
     if (btnExportJpeg) btnExportJpeg.onclick = exportImageAsJpeg;
     updateExportDirStatus('');
