@@ -1022,8 +1022,45 @@
         canvas.toBlob((blob) => resolve(blob), type, quality);
       });
     }
+    function hasTextToCopy() {
+      return !!String(editor.value || '').trim();
+    }
+    function hasImageToCopy() {
+      return !!(
+        imageBackground ||
+        imageBaseMode === 'note' ||
+        String(overlayTextInput && overlayTextInput.value || '').trim() ||
+        annotations.length ||
+        annotationDraft
+      );
+    }
+    async function copyCanvasImage(button = null, successMessage = '画像をコピーしました') {
+      renderImageCanvas();
+      const pngBlob = await canvasToBlob(imageCanvas, 'image/png');
+      if (!pngBlob || !(navigator.clipboard && window.ClipboardItem)) {
+        toastShow('画像コピーに未対応の環境です');
+        return false;
+      }
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+        playCopyEffect(button);
+        toastShow(successMessage, 2200, 'copy');
+        return true;
+      } catch {
+        toastShow('画像コピーに失敗しました');
+        return false;
+      }
+    }
     async function copyDraftBundle(button = null) {
       const text = String(editor.value || '').trim();
+      const hasText = hasTextToCopy();
+      const hasImage = hasImageToCopy();
+      if (hasText && !hasImage) return await copyText(text, button, '文字をコピーしました');
+      if (!hasText && hasImage) return await copyCanvasImage(button, '画像をコピーしました');
+      if (!hasText && !hasImage) {
+        toastShow('コピーする内容がありません');
+        return false;
+      }
       renderImageCanvas();
       const pngBlob = await canvasToBlob(imageCanvas, 'image/png');
       try {
@@ -1038,9 +1075,11 @@
           return true;
         }
       } catch {}
-      if (text) return await copyText(text, button, '文字をコピーしました');
-      toastShow('画像コピーに未対応の環境です');
-      return false;
+      return await copyText(text, button, '文字をコピーしました');
+    }
+    async function copyImageDraftBlock(button = null) {
+      const draft = buildImageDraftBlock();
+      return await copyText(draft, button, '画像下書きをコピーしました');
     }
     function updateFocusFromEditor(force = false) {
       try {
@@ -1802,7 +1841,7 @@
       renderImageCanvas();
     };
     if (btnPromptDraft) btnPromptDraft.onclick = appendImageDraftToEditor;
-    if (btnPromptCopy) btnPromptCopy.onclick = () => { copyText(buildImageDraftBlock(), btnPromptCopy, '画像下書きをコピーしました'); };
+    if (btnPromptCopy) btnPromptCopy.onclick = () => { copyImageDraftBlock(btnPromptCopy); };
     if (imagePromptInput) imagePromptInput.addEventListener('input', syncPromptToOverlay);
     if (overlayTextInput) overlayTextInput.addEventListener('input', renderImageCanvas);
     if (overlayPosition) overlayPosition.addEventListener('change', renderImageCanvas);
