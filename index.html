@@ -488,6 +488,12 @@
                   <option value="solid">しっかり</option>
                 </select>
               </label>
+              <label>白フィルタ
+                <select id="imageWashStyle">
+                  <option value="on" selected>あり</option>
+                  <option value="off">なし</option>
+                </select>
+              </label>
               <button id="toolPen" class="tool-chip">ペン</button>
               <button id="toolArrow" class="tool-chip">矢印</button>
               <label>注釈色
@@ -687,6 +693,7 @@
     const overlayTextInput = $('#overlayTextInput');
     const overlayPosition = $('#overlayPosition');
     const overlayBandStyle = $('#overlayBandStyle');
+    const imageWashStyle = $('#imageWashStyle');
     const toolPen = $('#toolPen');
     const toolArrow = $('#toolArrow');
     const annotationColor = $('#annotationColor');
@@ -1248,6 +1255,11 @@
       const dy = (height - drawHeight) / 2;
       ctx.drawImage(img, dx, dy, drawWidth, drawHeight);
     }
+    function drawImageWash(ctx, width, height) {
+      if (!imageWashStyle || imageWashStyle.value !== 'on') return;
+      ctx.fillStyle = 'rgba(255,255,255,0.32)';
+      ctx.fillRect(0, 0, width, height);
+    }
     function drawArrow(ctx, from, to, color) {
       const headLength = 28;
       const angle = Math.atan2(to.y - from.y, to.x - from.x);
@@ -1303,6 +1315,7 @@
       if (imageBackground) drawCoverImage(ctx, imageBackground, width, height);
       else if (imageBaseMode === 'note') renderNoteBase(ctx, width, height);
       else renderCanvasPlaceholder(ctx, width, height);
+      drawImageWash(ctx, width, height);
 
       const text = String(overlayTextInput && overlayTextInput.value || '').trim();
       if (!text) return;
@@ -1846,6 +1859,7 @@
     if (overlayTextInput) overlayTextInput.addEventListener('input', renderImageCanvas);
     if (overlayPosition) overlayPosition.addEventListener('change', renderImageCanvas);
     if (overlayBandStyle) overlayBandStyle.addEventListener('change', renderImageCanvas);
+    if (imageWashStyle) imageWashStyle.addEventListener('change', renderImageCanvas);
     if (toolPen) toolPen.onclick = () => { annotationTool = 'pen'; updateAnnotationToolUI(); };
     if (toolArrow) toolArrow.onclick = () => { annotationTool = 'arrow'; updateAnnotationToolUI(); };
     if (btnClearAnnotations) btnClearAnnotations.onclick = () => {
