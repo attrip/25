@@ -212,6 +212,14 @@
     .image-stage { border-radius: 14px; overflow: hidden; border: 1px solid rgba(148,163,184,0.18); background: #d9d9d9; }
     .image-stage canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; }
     .image-controls { display: grid; gap: 10px; margin-top: 12px; }
+    .compare-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .compare-card { border: 1px solid var(--border); border-radius: 14px; background: rgba(148,163,184,0.05); padding: 10px; display: grid; gap: 8px; }
+    .compare-card canvas { width: 100%; height: auto; border-radius: 10px; border: 1px solid rgba(148,163,184,0.16); background: #d9d9d9; }
+    .compare-card button { width: 100%; }
+    .compare-empty { color: var(--muted); font-size: 13px; }
+    @media (max-width: 900px) {
+      .compare-grid { grid-template-columns: 1fr; }
+    }
     .image-controls textarea,
     .image-controls input[type="text"],
     .image-controls select,
@@ -454,6 +462,13 @@
               <input id="imageBackgroundInput" type="file" accept="image/*" />
               <span id="imageBackgroundStatus" class="file-status">未選択</span>
             </div>
+            <div class="file-row">
+              <label for="compareCandidatesInput" class="button-like">🖼 候補画像を3枚選ぶ</label>
+              <input id="compareCandidatesInput" type="file" accept="image/*" multiple />
+              <span class="file-status">文字を載せた3案で比較</span>
+            </div>
+            <div id="compareGrid" class="compare-grid"></div>
+            <div id="compareEmpty" class="compare-empty">候補画像を3枚まで入れると、文字を載せた状態で比較できます。</div>
             <textarea id="overlayTextInput" placeholder="重ねる文字"></textarea>
             <div class="image-toolbar">
               <label>フォント
@@ -689,6 +704,9 @@
     const btnUsePlainBase = $('#btnUsePlainBase');
     const imagePromptInput = $('#imagePromptInput');
     const imageBackgroundInput = $('#imageBackgroundInput');
+    const compareCandidatesInput = $('#compareCandidatesInput');
+    const compareGrid = $('#compareGrid');
+    const compareEmpty = $('#compareEmpty');
     const imageBackgroundStatus = $('#imageBackgroundStatus');
     const overlayTextInput = $('#overlayTextInput');
     const overlayPosition = $('#overlayPosition');
@@ -737,6 +755,7 @@
     let focusFoldTimer = null;
     let imageBackground = null;
     let imageBaseMode = 'note';
+    let compareCandidates = [];
     let exportDirHandle = null;
     let currentCanvasFont = 'Noto Sans JP';
     let annotationTool = 'pen';
@@ -1295,28 +1314,7 @@
         if (item.type === 'arrow' && item.from && item.to) drawArrow(ctx, item.from, item.to, color);
       });
     }
-    function getCanvasPoint(event) {
-      if (!imageCanvas) return null;
-      const rect = imageCanvas.getBoundingClientRect();
-      const scaleX = imageCanvas.width / rect.width;
-      const scaleY = imageCanvas.height / rect.height;
-      return {
-        x: (event.clientX - rect.left) * scaleX,
-        y: (event.clientY - rect.top) * scaleY
-      };
-    }
-    function renderImageCanvas() {
-      if (!imageCanvas) return;
-      const ctx = imageCanvas.getContext('2d');
-      if (!ctx) return;
-      const width = imageCanvas.width;
-      const height = imageCanvas.height;
-      ctx.clearRect(0, 0, width, height);
-      if (imageBackground) drawCoverImage(ctx, imageBackground, width, height);
-      else if (imageBaseMode === 'note') renderNoteBase(ctx, width, height);
-      else renderCanvasPlaceholder(ctx, width, height);
-      drawImageWash(ctx, width, height);
-
+    function drawTextOverlay(ctx, width, height) {
       const text = String(overlayTextInput && overlayTextInput.value || '').trim();
       if (!text) return;
       const fontSize = Math.max(24, Math.min(220, parseInt(overlayFontSize && overlayFontSize.value || '88', 10) || 88));
@@ -1346,7 +1344,63 @@
         ctx.fillText(line, width / 2, y, width - 160);
       });
       ctx.shadowBlur = 0;
-      drawAnnotations(ctx);
+    }
+    function getCanvasPoint(event) {
+      if (!imageCanvas) return null;
+      const rect = imageCanvas.getBoundingClientRect();
+      const scaleX = imageCanvas.width / rect.width;
+      const scaleY = imageCanvas.height / rect.height;
+      return {
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY
+      };
+    }
+    function renderCanvasScene(ctx, width, height, background, baseMode, includeAnnotations = false) {
+      ctx.clearRect(0, 0, width, height);
+      if (background) drawCoverImage(ctx, background, width, height);
+      else if (baseMode === 'note') renderNoteBase(ctx, width, height);
+      else renderCanvasPlaceholder(ctx, width, height);
+      drawImageWash(ctx, width, height);
+      drawTextOverlay(ctx, width, height);
+      if (includeAnnotations) drawAnnotations(ctx);
+    }
+    function renderCompareCandidates() {
+      if (!compareGrid || !compareEmpty) return;
+      compareGrid.innerHTML = '';
+      compareEmpty.style.display = compareCandidates.length ? 'none' : 'block';
+      compareCandidates.forEach((candidate, index) => {
+        const card = document.createElement('div');
+        card.className = 'compare-card';
+        const canvas = document.createElement('canvas');
+        canvas.width = 640;
+        canvas.height = 360;
+        const ctx = canvas.getContext('2d');
+        if (ctx) renderCanvasScene(ctx, canvas.width, canvas.height, candidate.img, 'custom', false);
+        const meta = document.createElement('div');
+        meta.className = 'file-status';
+        meta.textContent = candidate.name || `候補 ${index + 1}`;
+        const applyBtn = document.createElement('button');
+        applyBtn.textContent = 'これを採用';
+        applyBtn.onclick = () => {
+          imageBackground = candidate.img;
+          imageBaseMode = 'custom';
+          updateImageBackgroundStatus(candidate.name || `候補 ${index + 1}`);
+          renderImageCanvas();
+        };
+        card.appendChild(canvas);
+        card.appendChild(meta);
+        card.appendChild(applyBtn);
+        compareGrid.appendChild(card);
+      });
+    }
+    function renderImageCanvas() {
+      if (!imageCanvas) return;
+      const ctx = imageCanvas.getContext('2d');
+      if (!ctx) return;
+      const width = imageCanvas.width;
+      const height = imageCanvas.height;
+      renderCanvasScene(ctx, width, height, imageBackground, imageBaseMode, true);
+      renderCompareCandidates();
     }
     function exportImageAsJpeg() {
       if (!imageCanvas) return;
@@ -1904,6 +1958,21 @@
         URL.revokeObjectURL(url);
       };
       img.src = url;
+    });
+    if (compareCandidatesInput) compareCandidatesInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target && e.target.files || []).slice(0, 3);
+      compareCandidates = [];
+      for (const file of files) {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        await new Promise((resolve) => {
+          img.onload = () => { URL.revokeObjectURL(url); resolve(); };
+          img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+          img.src = url;
+        });
+        if (img.width && img.height) compareCandidates.push({ img, name: file.name });
+      }
+      renderCompareCandidates();
     });
     if (btnPickExportDir) btnPickExportDir.onclick = async () => {
       if (!window.showDirectoryPicker) {
