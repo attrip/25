@@ -217,6 +217,41 @@
     .compare-card canvas { width: 100%; height: auto; border-radius: 10px; border: 1px solid rgba(148,163,184,0.16); background: #d9d9d9; }
     .compare-card button { width: 100%; }
     .compare-empty { color: var(--muted); font-size: 13px; }
+    .stock-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .stock-card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: rgba(148,163,184,0.05);
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
+    .stock-thumb {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid rgba(148,163,184,0.16);
+      background: #d9d9d9;
+      display: block;
+    }
+    .stock-name {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .stock-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .stock-actions button {
+      flex: 1 1 0;
+      width: auto;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
     .helper-box {
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -228,6 +263,7 @@
     }
     @media (max-width: 900px) {
       .compare-grid { grid-template-columns: 1fr; }
+      .stock-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     .image-controls textarea,
     .image-controls input[type="text"],
@@ -480,6 +516,11 @@
               <span id="imageBackgroundStatus" class="file-status">未選択</span>
             </div>
             <div class="file-row">
+              <div class="file-status">ストックした画像はここから選び直せます。</div>
+            </div>
+            <div id="imageStockGrid" class="stock-grid"></div>
+            <div id="imageStockEmpty" class="compare-empty">画像を選ぶと、背景ストックとして残ります。</div>
+            <div class="file-row">
               <label for="compareCandidatesInput" class="button-like">🖼 候補画像を3枚選ぶ</label>
               <input id="compareCandidatesInput" type="file" accept="image/*" multiple />
               <span class="file-status">文字を載せた3案で比較</span>
@@ -729,6 +770,8 @@
     const compareGrid = $('#compareGrid');
     const compareEmpty = $('#compareEmpty');
     const imageBackgroundStatus = $('#imageBackgroundStatus');
+    const imageStockGrid = $('#imageStockGrid');
+    const imageStockEmpty = $('#imageStockEmpty');
     const overlayTextInput = $('#overlayTextInput');
     const overlayPosition = $('#overlayPosition');
     const overlayBandStyle = $('#overlayBandStyle');
@@ -777,6 +820,7 @@
     let imageBackground = null;
     let imageBaseMode = 'note';
     let compareCandidates = [];
+    let imageStockItems = [];
     let loadedMarkdownText = '';
     let exportDirHandle = null;
     let currentCanvasFont = 'Noto Sans JP';
@@ -784,6 +828,8 @@
     let annotationDraft = null;
     const annotations = [];
     const annotationRedoStack = [];
+    const IMAGE_STOCK_DB = 'focus_image_stock_v1';
+    const IMAGE_STOCK_STORE = 'images';
     const SESS_KEY = 'focus_sessions_v1';
     let coachRotateId = null;
     let coachShownAt = 0;
@@ -1269,6 +1315,144 @@
     function updateAnnotationToolUI() {
       if (toolPen) toolPen.classList.toggle('active', annotationTool === 'pen');
       if (toolArrow) toolArrow.classList.toggle('active', annotationTool === 'arrow');
+    }
+    function openImageStockDb() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          reject(new Error('IndexedDB unsupported'));
+          return;
+        }
+        const request = window.indexedDB.open(IMAGE_STOCK_DB, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(IMAGE_STOCK_STORE)) {
+            const store = db.createObjectStore(IMAGE_STOCK_STORE, { keyPath: 'id' });
+            store.createIndex('updatedAt', 'updatedAt');
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('db open failed'));
+      });
+    }
+    async function imageStockDbReadAll() {
+      const db = await openImageStockDb();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(IMAGE_STOCK_STORE, 'readonly');
+        const store = tx.objectStore(IMAGE_STOCK_STORE);
+        const request = store.getAll();
+        request.onsuccess = () => {
+          const items = Array.isArray(request.result) ? request.result : [];
+          resolve(items.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 24));
+        };
+        request.onerror = () => reject(request.error || new Error('db read failed'));
+        tx.oncomplete = () => db.close();
+      });
+    }
+    async function imageStockDbPut(item) {
+      const db = await openImageStockDb();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(IMAGE_STOCK_STORE, 'readwrite');
+        tx.objectStore(IMAGE_STOCK_STORE).put(item);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => reject(tx.error || new Error('db write failed'));
+      });
+    }
+    async function imageStockDbDelete(id) {
+      const db = await openImageStockDb();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(IMAGE_STOCK_STORE, 'readwrite');
+        tx.objectStore(IMAGE_STOCK_STORE).delete(id);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => reject(tx.error || new Error('db delete failed'));
+      });
+    }
+    function buildImageStockId(file) {
+      return [
+        file.name || 'image',
+        file.size || 0,
+        file.lastModified || 0,
+        file.type || 'image/*'
+      ].join('__');
+    }
+    async function applyImageBackgroundFromBlob(blob, name = '背景画像') {
+      if (!blob) return false;
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      return await new Promise((resolve) => {
+        img.onload = () => {
+          imageBackground = img;
+          imageBaseMode = 'custom';
+          updateImageBackgroundStatus(name);
+          renderImageCanvas();
+          URL.revokeObjectURL(url);
+          resolve(true);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          resolve(false);
+        };
+        img.src = url;
+      });
+    }
+    async function refreshImageStock() {
+      if (!imageStockGrid || !imageStockEmpty) return;
+      try {
+        imageStockItems = await imageStockDbReadAll();
+      } catch {
+        imageStockItems = [];
+      }
+      imageStockGrid.innerHTML = '';
+      imageStockEmpty.style.display = imageStockItems.length ? 'none' : 'block';
+      imageStockItems.forEach((item, index) => {
+        const card = document.createElement('div');
+        card.className = 'stock-card';
+        const thumb = document.createElement('img');
+        thumb.className = 'stock-thumb';
+        thumb.alt = item.name || `ストック ${index + 1}`;
+        thumb.src = URL.createObjectURL(item.blob);
+        thumb.onload = () => URL.revokeObjectURL(thumb.src);
+        thumb.onerror = () => URL.revokeObjectURL(thumb.src);
+        const name = document.createElement('div');
+        name.className = 'stock-name';
+        name.textContent = item.name || `ストック ${index + 1}`;
+        const actions = document.createElement('div');
+        actions.className = 'stock-actions';
+        const useBtn = document.createElement('button');
+        useBtn.textContent = '使う';
+        useBtn.onclick = async () => {
+          const ok = await applyImageBackgroundFromBlob(item.blob, item.name || `ストック ${index + 1}`);
+          if (!ok) toastShow('ストック画像を開けませんでした');
+        };
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '外す';
+        delBtn.onclick = async () => {
+          try {
+            await imageStockDbDelete(item.id);
+            await refreshImageStock();
+          } catch {
+            toastShow('ストックを外せませんでした');
+          }
+        };
+        actions.appendChild(useBtn);
+        actions.appendChild(delBtn);
+        card.appendChild(thumb);
+        card.appendChild(name);
+        card.appendChild(actions);
+        imageStockGrid.appendChild(card);
+      });
+    }
+    async function saveImageFileToStock(file) {
+      if (!file || !file.type || !file.type.startsWith('image/')) return;
+      try {
+        await imageStockDbPut({
+          id: buildImageStockId(file),
+          name: file.name || 'image',
+          type: file.type || 'image/*',
+          updatedAt: Date.now(),
+          blob: file
+        });
+        await refreshImageStock();
+      } catch {}
     }
     function pushAnnotation(item) {
       annotations.push(item);
@@ -2031,7 +2215,7 @@
       }
     });
     if (canvasAspect) canvasAspect.addEventListener('change', applyCanvasAspect);
-    if (imageBackgroundInput) imageBackgroundInput.addEventListener('change', (e) => {
+    if (imageBackgroundInput) imageBackgroundInput.addEventListener('change', async (e) => {
       const file = e.target && e.target.files && e.target.files[0];
       if (!file) {
         imageBackground = null;
@@ -2040,16 +2224,9 @@
         renderImageCanvas();
         return;
       }
-      imageBaseMode = 'custom';
-      updateImageBackgroundStatus(file.name);
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        imageBackground = img;
-        renderImageCanvas();
-        URL.revokeObjectURL(url);
-      };
-      img.src = url;
+      await saveImageFileToStock(file);
+      const ok = await applyImageBackgroundFromBlob(file, file.name);
+      if (!ok) toastShow('背景画像を読み込めませんでした');
     });
     if (compareCandidatesInput) compareCandidatesInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target && e.target.files || []).slice(0, 3);
@@ -2078,6 +2255,7 @@
     };
     updateImageBackgroundStatus('ノート台紙');
     updateAnnotationToolUI();
+    refreshImageStock();
     if (imageCanvas) {
       imageCanvas.addEventListener('pointerdown', (e) => {
         const point = getCanvasPoint(e);
