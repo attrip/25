@@ -217,6 +217,15 @@
     .compare-card canvas { width: 100%; height: auto; border-radius: 10px; border: 1px solid rgba(148,163,184,0.16); background: #d9d9d9; }
     .compare-card button { width: 100%; }
     .compare-empty { color: var(--muted); font-size: 13px; }
+    .helper-box {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(148,163,184,0.05);
+      padding: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
     @media (max-width: 900px) {
       .compare-grid { grid-template-columns: 1fr; }
     }
@@ -449,6 +458,14 @@
           <button id="btnPromptDraft">下書きへ反映</button>
           <button id="btnPromptCopy">下書きをコピー</button>
         </div>
+        <div class="spacer"></div>
+        <div class="file-row">
+          <label for="markdownInput" class="button-like">📝 mdを読む</label>
+          <input id="markdownInput" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" />
+          <button id="btnMarkdownPrompt">画像依頼を作る</button>
+          <span id="markdownStatus" class="file-status">未選択</span>
+        </div>
+        <div id="markdownHelper" class="helper-box">md を入れると、画像生成依頼のたたき台をここに出します。</div>
         <div class="spacer"></div>
         <div class="image-board">
           <div class="image-stage">
@@ -703,6 +720,10 @@
     const btnUseNoteBase = $('#btnUseNoteBase');
     const btnUsePlainBase = $('#btnUsePlainBase');
     const imagePromptInput = $('#imagePromptInput');
+    const markdownInput = $('#markdownInput');
+    const btnMarkdownPrompt = $('#btnMarkdownPrompt');
+    const markdownStatus = $('#markdownStatus');
+    const markdownHelper = $('#markdownHelper');
     const imageBackgroundInput = $('#imageBackgroundInput');
     const compareCandidatesInput = $('#compareCandidatesInput');
     const compareGrid = $('#compareGrid');
@@ -756,6 +777,7 @@
     let imageBackground = null;
     let imageBaseMode = 'note';
     let compareCandidates = [];
+    let loadedMarkdownText = '';
     let exportDirHandle = null;
     let currentCanvasFont = 'Noto Sans JP';
     let annotationTool = 'pen';
@@ -1153,6 +1175,62 @@
     }
     function getImagePromptValue() {
       return String(imagePromptInput && imagePromptInput.value || '').trim();
+    }
+    function updateMarkdownStatus(name = '') {
+      if (!markdownStatus) return;
+      markdownStatus.textContent = name || '未選択';
+    }
+    function setMarkdownHelper(text) {
+      if (!markdownHelper) return;
+      markdownHelper.textContent = text || 'md を入れると、画像生成依頼のたたき台をここに出します。';
+    }
+    function extractMarkdownSignals(raw) {
+      const src = String(raw || '').replace(/\r/g, '');
+      const headings = Array.from(src.matchAll(/^#{1,3}\s+(.+)$/gm)).map((m) => m[1].trim()).slice(0, 4);
+      const bullets = Array.from(src.matchAll(/^(?:-|\*|\d+\.)\s+(.+)$/gm)).map((m) => m[1].trim()).slice(0, 5);
+      const paragraphs = src
+        .split(/\n{2,}/)
+        .map((s) => s.replace(/^#+\s+/gm, '').replace(/\n+/g, ' ').trim())
+        .filter(Boolean)
+        .slice(0, 3);
+      return { headings, bullets, paragraphs };
+    }
+    function buildPromptSuggestion() {
+      const editorText = String(editor && editor.value || '').trim();
+      const promptSeed = getImagePromptValue();
+      const mdSignals = extractMarkdownSignals(loadedMarkdownText);
+      const sourceLines = [
+        promptSeed,
+        editorText.split('\n').slice(0, 6).join(' '),
+        mdSignals.headings.join(' / '),
+        mdSignals.bullets.join(' / '),
+        mdSignals.paragraphs.join(' / ')
+      ].map((s) => s.trim()).filter(Boolean);
+      if (!sourceLines.length) {
+        return {
+          shortPrompt: '',
+          helper: 'テキストか md を入れると、記事内容に沿った画像生成依頼のたたき台を出します。'
+        };
+      }
+      const merged = sourceLines.join(' / ').replace(/\s+/g, ' ').trim();
+      const shortPrompt = `記事内容に沿う自然な背景写真。${merged}。文字を中央に載せやすい十分な余白、無難で不自然さのない構図、アイキャッチ向け。`;
+      const helper = [
+        '画像生成依頼の提案',
+        shortPrompt,
+        '',
+        '補助メモ',
+        '・記事内容に沿う自然な情景',
+        '・文字を中央に置ける余白',
+        '・不自然な人物や物体は避ける',
+        '・アイキャッチ向けに無難で読みやすい背景'
+      ].join('\n');
+      return { shortPrompt, helper };
+    }
+    function refreshPromptSuggestion(applyToInput = false) {
+      const suggestion = buildPromptSuggestion();
+      setMarkdownHelper(suggestion.helper);
+      if (applyToInput && suggestion.shortPrompt && imagePromptInput) imagePromptInput.value = suggestion.shortPrompt;
+      return suggestion;
     }
     function buildImageDraftBlock() {
       const prompt = getImagePromptValue();
@@ -1909,7 +1987,21 @@
     };
     if (btnPromptDraft) btnPromptDraft.onclick = appendImageDraftToEditor;
     if (btnPromptCopy) btnPromptCopy.onclick = () => { copyImageDraftBlock(btnPromptCopy); };
+    if (btnMarkdownPrompt) btnMarkdownPrompt.onclick = () => { refreshPromptSuggestion(true); };
+    if (markdownInput) markdownInput.addEventListener('change', async (e) => {
+      const file = e.target && e.target.files && e.target.files[0];
+      if (!file) {
+        loadedMarkdownText = '';
+        updateMarkdownStatus('');
+        refreshPromptSuggestion(false);
+        return;
+      }
+      loadedMarkdownText = await file.text();
+      updateMarkdownStatus(file.name);
+      refreshPromptSuggestion(true);
+    });
     if (imagePromptInput) imagePromptInput.addEventListener('input', syncPromptToOverlay);
+    if (editor) editor.addEventListener('input', () => { refreshPromptSuggestion(false); });
     if (overlayTextInput) overlayTextInput.addEventListener('input', renderImageCanvas);
     if (overlayPosition) overlayPosition.addEventListener('change', renderImageCanvas);
     if (overlayBandStyle) overlayBandStyle.addEventListener('change', renderImageCanvas);
@@ -2024,6 +2116,8 @@
     if (btnExportJpeg) btnExportJpeg.onclick = exportImageAsJpeg;
     updateExportDirStatus('');
     applyCanvasAspect();
+    updateMarkdownStatus('');
+    refreshPromptSuggestion(false);
     if (!editor.value && !currentEntryId) startNewSession();
 
     // 読みやすさモード: ヘッダーのボタン
