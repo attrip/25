@@ -342,10 +342,61 @@
     .modal-panel { width: min(880px, 92vw); max-height: 86vh; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; color: var(--fg); }
     .read-controls { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     .read-controls .left, .read-controls .right { display: flex; gap: 8px; align-items: center; }
-    .readable { max-width: 72ch; margin: 0 auto; font-size: 18px; line-height: 1.85; letter-spacing: .01em; }
+    .read-modal-panel { width: min(1120px, 94vw); }
+    .read-layout { display: grid; grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); gap: 24px; align-items: start; }
+    .read-sidebar { position: sticky; top: 0; align-self: start; }
+    .read-toc-card {
+      border: 1px solid var(--border);
+      background: rgba(148,163,184,0.05);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .read-toc-title { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+    .read-toc-list { display: grid; gap: 4px; }
+    .read-toc-link {
+      display: block;
+      text-decoration: none;
+      color: var(--muted);
+      border-radius: 10px;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+    }
+    .read-toc-link:hover {
+      color: var(--fg);
+      background: rgba(148,163,184,0.08);
+      border-color: rgba(148,163,184,0.18);
+      transform: translateX(2px);
+    }
+    .read-toc-link.active {
+      color: var(--fg);
+      background: rgba(96,165,250,.14);
+      border-color: rgba(96,165,250,.36);
+      font-weight: 700;
+    }
+    .read-toc-link[data-level="2"] { padding-left: 22px; }
+    .read-toc-link[data-level="3"] { padding-left: 34px; }
+    .read-main { min-width: 0; }
+    .readable { max-width: 72ch; margin: 0; font-size: 18px; line-height: 1.85; letter-spacing: .01em; }
     .readable p { margin: .7em 0; }
+    .readable h1, .readable h2, .readable h3, .readable h4, .readable h5, .readable h6 {
+      margin: 1.6em 0 .55em;
+      line-height: 1.35;
+      letter-spacing: .01em;
+      scroll-margin-top: 72px;
+    }
+    .readable h1 { font-size: 1.7em; }
+    .readable h2 { font-size: 1.35em; }
+    .readable h3 { font-size: 1.15em; color: var(--fg); }
     .readable a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
     .read-empty { text-align: center; color: var(--muted); padding: 32px 0; }
+    @media (max-width: 900px) {
+      .read-layout { grid-template-columns: 1fr; }
+      .read-sidebar { position: static; }
+      .read-toc-card { padding: 12px; }
+      .read-toc-list { grid-template-columns: 1fr; }
+      .readable { max-width: 100%; }
+    }
 
     html[data-theme="light"] .modal-panel { background: var(--surface); border-color: var(--border); }
 
@@ -480,6 +531,7 @@
         <div class="spacer"></div>
         <div class="row">
           <button id="btnImageTemplate">画像セット</button>
+          <button id="btnReadMode">読む</button>
           <button id="btnCopy" class="primary copy-btn">📋 コピー</button>
           <button id="btnSave">保存</button>
           <button id="btnPause" class="warn">一時停止</button>
@@ -629,7 +681,7 @@
 
   <!-- 読みやすさモード -->
   <div id="readModal" class="modal" role="dialog" aria-modal="true" aria-label="読みやすさモード">
-    <div class="modal-panel">
+    <div class="modal-panel read-modal-panel">
       <div class="read-controls">
         <div class="left">
           <strong class="muted">読む</strong>
@@ -641,8 +693,19 @@
           <button id="readClose" class="danger" title="閉じる">閉じる</button>
         </div>
       </div>
-      <article id="readContent" class="readable"></article>
-      <div id="readEmpty" class="read-empty" style="display:none">表示するテキストがありません</div>
+      <div class="read-layout">
+        <aside class="read-sidebar" aria-label="目次">
+          <div class="read-toc-card">
+            <div class="read-toc-title">Contents</div>
+            <nav id="readToc" class="read-toc-list"></nav>
+            <div id="readTocEmpty" class="muted" style="font-size:13px; display:none;">見出しがあるとここに目次を表示します。</div>
+          </div>
+        </aside>
+        <div class="read-main">
+          <article id="readContent" class="readable"></article>
+          <div id="readEmpty" class="read-empty" style="display:none">表示するテキストがありません</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -910,10 +973,14 @@
     const readModal = $('#readModal');
     const readContent = $('#readContent');
     const readEmpty = $('#readEmpty');
+    const readToc = $('#readToc');
+    const readTocEmpty = $('#readTocEmpty');
+    const readModalPanel = readModal ? readModal.querySelector('.read-modal-panel') : null;
     const READ_FS_KEY = 'focus_read_fs';
     const READ_LH_KEY = 'focus_read_lh';
     let readFs = parseInt(localStorage.getItem(READ_FS_KEY) || '18', 10);
     let readLh = parseFloat(localStorage.getItem(READ_LH_KEY) || '1.85');
+    let readTocScrollBound = false;
 
     function applyReadPrefs() {
       if (readContent) {
@@ -958,23 +1025,134 @@
       if (buf) paras.push(buf);
       return paras;
     }
+    function slugifyHeading(text, fallbackIndex) {
+      const base = String(text || '')
+        .toLowerCase()
+        .trim()
+        .replace(/<[^>]+>/g, '')
+        .replace(/[^\w\u3040-\u30ff\u3400-\u9fff\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      return base || `section-${fallbackIndex}`;
+    }
+    function parseReadableDocument(text) {
+      const raw = String(text || '').replace(/\r/g, '');
+      if (!raw.trim()) return { html: '', headings: [] };
+      const lines = raw.split('\n');
+      const blocks = [];
+      const headings = [];
+      const usedIds = new Set();
+      let paragraphLines = [];
+
+      function flushParagraphLines() {
+        if (paragraphLines.length === 0) return;
+        const joined = paragraphLines.join('\n').trim();
+        paragraphLines = [];
+        if (!joined) return;
+        const paragraphs = toParagraphs(joined);
+        paragraphs.forEach((paragraph) => {
+          blocks.push(`<p>${linkifyAndEscape(paragraph)}</p>`);
+        });
+      }
+
+      lines.forEach((line) => {
+        const match = line.match(/^(#{1,6})\s+(.+?)\s*$/);
+        if (match) {
+          flushParagraphLines();
+          const level = Math.min(match[1].length, 6);
+          const textValue = match[2].trim();
+          const baseId = slugifyHeading(textValue, headings.length + 1);
+          let id = baseId;
+          let suffix = 2;
+          while (usedIds.has(id)) {
+            id = `${baseId}-${suffix}`;
+            suffix += 1;
+          }
+          usedIds.add(id);
+          headings.push({ id, level, text: textValue });
+          blocks.push(`<h${level} id="${id}" data-read-heading="1">${linkifyAndEscape(textValue)}</h${level}>`);
+          return;
+        }
+        if (!line.trim()) {
+          flushParagraphLines();
+          return;
+        }
+        paragraphLines.push(line);
+      });
+      flushParagraphLines();
+      return { html: blocks.join(''), headings: headings.filter((item) => item.level <= 3) };
+    }
+    function renderReadToc(headings) {
+      if (!readToc || !readTocEmpty) return;
+      readToc.innerHTML = '';
+      if (!headings.length) {
+        readTocEmpty.style.display = 'block';
+        return;
+      }
+      readTocEmpty.style.display = 'none';
+      headings.forEach((heading) => {
+        const link = document.createElement('a');
+        link.className = 'read-toc-link';
+        link.href = `#${heading.id}`;
+        link.dataset.target = heading.id;
+        link.dataset.level = String(heading.level);
+        link.textContent = heading.text;
+        link.onclick = (event) => {
+          event.preventDefault();
+          const target = readContent.querySelector(`#${CSS.escape(heading.id)}`);
+          if (!target) return;
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          setActiveReadTocItem(heading.id);
+        };
+        readToc.appendChild(link);
+      });
+    }
+    function setActiveReadTocItem(id) {
+      if (!readToc) return;
+      readToc.querySelectorAll('.read-toc-link').forEach((link) => {
+        link.classList.toggle('active', link.dataset.target === id);
+      });
+    }
+    function syncActiveReadHeading() {
+      if (!readModalPanel || !readContent || !readToc) return;
+      const headings = Array.from(readContent.querySelectorAll('[data-read-heading]'));
+      if (!headings.length) {
+        setActiveReadTocItem('');
+        return;
+      }
+      const panelTop = readModalPanel.getBoundingClientRect().top;
+      let activeId = headings[0].id;
+      headings.forEach((heading) => {
+        const top = heading.getBoundingClientRect().top - panelTop;
+        if (top <= 140) activeId = heading.id;
+      });
+      setActiveReadTocItem(activeId);
+    }
+    function bindReadTocTracking() {
+      if (readTocScrollBound || !readModalPanel) return;
+      readModalPanel.addEventListener('scroll', syncActiveReadHeading, { passive: true });
+      window.addEventListener('resize', syncActiveReadHeading);
+      readTocScrollBound = true;
+    }
     function renderReadable(text) {
-      const ps = toParagraphs(text);
-      if (ps.length === 0) return '';
-      return ps.map(p => `<p>${linkifyAndEscape(p)}</p>`).join('');
+      return parseReadableDocument(text);
     }
     function openReadModalFromText(text) {
-      const html = renderReadable(text);
-      if (html) {
-        readContent.innerHTML = html;
+      const doc = renderReadable(text);
+      if (doc.html) {
+        readContent.innerHTML = doc.html;
         readContent.style.display = '';
         readEmpty.style.display = 'none';
       } else {
         readContent.style.display = 'none';
         readEmpty.style.display = 'block';
       }
+      renderReadToc(doc.headings);
       applyReadPrefs();
       readModal.classList.add('show');
+      bindReadTocTracking();
+      requestAnimationFrame(syncActiveReadHeading);
       try { const first = readModal.querySelector('#readClose, button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'); if (first && first.focus) first.focus(); } catch {}
       if (typeof enableReadModalTrap === 'function') enableReadModalTrap();
     }
