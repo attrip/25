@@ -268,6 +268,7 @@
     .image-controls textarea,
     .image-controls input[type="text"],
     .image-controls select,
+    .image-controls input[type="number"],
     .image-controls input[type="file"] {
       appearance: none;
       width: 100%;
@@ -282,6 +283,9 @@
     .image-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .image-toolbar label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
     .image-toolbar input[type="range"] { accent-color: var(--accent); }
+    .size-control { display: inline-flex; align-items: center; gap: 8px; }
+    .size-control input[type="range"] { width: 160px; }
+    .size-control input[type="number"] { width: 84px; }
     .tool-chip.active { border-color: rgba(96,165,250,.5); background: rgba(96,165,250,.12); }
     .file-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .file-row input[type="file"] {
@@ -626,7 +630,10 @@
               </label>
               <button id="btnClearAnnotations">注釈クリア</button>
               <label>サイズ
-                <input id="overlayFontSize" type="range" min="40" max="180" step="2" value="88" />
+                <span class="size-control">
+                  <input id="overlayFontSize" type="range" min="40" max="180" step="2" value="88" />
+                  <input id="overlayFontSizeNumber" type="number" min="40" max="180" step="2" value="88" />
+                </span>
               </label>
               <button id="btnPickExportDir">保存先</button>
               <button id="btnExportJpeg">JPEG書き出し</button>
@@ -844,6 +851,7 @@
     const annotationColor = $('#annotationColor');
     const btnClearAnnotations = $('#btnClearAnnotations');
     const overlayFontSize = $('#overlayFontSize');
+    const overlayFontSizeNumber = $('#overlayFontSizeNumber');
     const overlayFontFamily = $('#overlayFontFamily');
     const customFontInput = $('#customFontInput');
     const canvasAspect = $('#canvasAspect');
@@ -2376,7 +2384,15 @@
       annotationDraft = null;
       renderImageCanvas();
     };
-    if (overlayFontSize) overlayFontSize.addEventListener('input', renderImageCanvas);
+    function syncOverlayFontSize(source) {
+      const raw = parseInt(source && source.value || '88', 10);
+      const next = Math.max(40, Math.min(180, Number.isFinite(raw) ? raw : 88));
+      if (overlayFontSize) overlayFontSize.value = String(next);
+      if (overlayFontSizeNumber) overlayFontSizeNumber.value = String(next);
+      renderImageCanvas();
+    }
+    if (overlayFontSize) overlayFontSize.addEventListener('input', () => syncOverlayFontSize(overlayFontSize));
+    if (overlayFontSizeNumber) overlayFontSizeNumber.addEventListener('input', () => syncOverlayFontSize(overlayFontSizeNumber));
     if (overlayFontFamily) overlayFontFamily.addEventListener('change', async () => {
       currentCanvasFont = overlayFontFamily.value || 'Noto Sans JP';
       try { await document.fonts.load(`700 88px "${currentCanvasFont}"`); } catch {}
