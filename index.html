@@ -1850,10 +1850,20 @@
       renderCanvasScene(ctx, width, height, imageBackground, imageBaseMode, true);
       renderCompareCandidates();
     }
+    function buildExportFilename() {
+      const rawText = String(overlayTextInput && overlayTextInput.value || '').trim();
+      const normalized = rawText
+        .replace(/\s+/g, ' ')
+        .replace(/[\\/:*?"<>|]/g, '')
+        .replace(/^\.+/, '')
+        .trim();
+      const baseName = normalized || `image-draft-${Date.now()}`;
+      return `${baseName}.jpg`;
+    }
     function exportImageAsJpeg() {
       if (!imageCanvas) return;
       renderImageCanvas();
-      const filename = `image-draft-${Date.now()}.jpg`;
+      const filename = buildExportFilename();
       if (exportDirHandle && imageCanvas.toBlob) {
         imageCanvas.toBlob(async (blob) => {
           try {
