@@ -511,6 +511,27 @@
       bottom: 96px;
       min-height: 0;
     }
+    body.body-fullscreen #workActions {
+      display: flex !important;
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      left: auto;
+      z-index: 30;
+      gap: 8px;
+      flex-wrap: nowrap;
+      padding: 10px;
+      border-radius: 16px;
+      background: rgba(11, 19, 34, 0.72);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    body.body-fullscreen #workActions > :not(#btnFullscreen):not(#btnChatMode) {
+      display: none !important;
+    }
+    body.body-fullscreen #workActions #saveStatus {
+      display: none !important;
+    }
 
     /* Reduced motion respect */
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
@@ -579,7 +600,7 @@
           <button id="chatSend" class="primary">追加</button>
         </div>
         <div class="spacer"></div>
-        <div class="row">
+        <div class="row" id="workActions">
           <button id="btnImageTemplate">画像セット</button>
           <button id="btnReadMode">読む</button>
           <button id="btnCopy" class="primary copy-btn">📋 コピー</button>
