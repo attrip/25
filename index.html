@@ -206,8 +206,6 @@
     #chatRow { display: flex; gap: 12px; align-items: center; flex-wrap: nowrap; width: 100%; }
     #chatSend { flex: none; }
     #chatInput { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 12px 14px; border-radius: 12px; font-size: 20px; line-height: 1.8; flex: 1 1 auto; min-width: 0; }
-    .chat-mode-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .chat-mode-toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
     .chat-reply {
       border: 1px solid rgba(148, 163, 184, 0.22);
       background: rgba(148, 163, 184, 0.08);
@@ -221,6 +219,11 @@
       line-height: 1.6;
     }
     .chat-reply.is-hidden { display: none; }
+    #btnChatMode.active {
+      border-color: rgba(96,165,250,.5);
+      background: rgba(96,165,250,.12);
+      box-shadow: 0 0 0 3px rgba(96,165,250,.12);
+    }
     .prompt-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .prompt-row input { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 10px 12px; border-radius: 12px; font-size: 14px; flex: 1 1 320px; min-width: 220px; }
     .image-board { border: 1px solid var(--border); border-radius: 16px; background: rgba(148,163,184,0.04); padding: 14px; }
@@ -482,6 +485,32 @@
       border: none;
       font-size: 20px; /* Increase font size in fullscreen */
     }
+    body.body-fullscreen #chatRow,
+    body.body-fullscreen #chatReply {
+      display: flex !important;
+    }
+    body.body-fullscreen #chatRow {
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      z-index: 20;
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(11, 19, 34, 0.88);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    body.body-fullscreen #chatReply {
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      z-index: 20;
+    }
+    body.body-fullscreen #chatReply {
+      bottom: 96px;
+      min-height: 0;
+    }
 
     /* Reduced motion respect */
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
@@ -543,11 +572,6 @@
         <div class="spacer"></div>
         <textarea id="editor" placeholder="そのまま入力、または「🎤 話して入力」でスタート。内容は自動保存されます。"></textarea>
         <div class="spacer"></div>
-        <div class="chat-mode-bar">
-          <label class="chat-mode-toggle"><input type="checkbox" id="chatModeToggle" /> チャットモード</label>
-          <span id="chatModeHint" class="muted">オンにすると相づちだけ返します</span>
-        </div>
-        <div class="spacer"></div>
         <div id="chatReply" class="chat-reply is-hidden" aria-live="polite"></div>
         <div class="spacer"></div>
         <div class="row" id="chatRow">
@@ -564,6 +588,7 @@
           <button id="btnReset" class="danger">リセット</button>
           <button id="btnMic" title="話して入力">🎤 話して入力</button>
           <button id="btnFullscreen" title="集中モード切替">集中モード</button>
+          <button id="btnChatMode" title="チャットモード切替">チャットモード</button>
           <span id="saveStatus" class="muted" style="margin-left: auto;">未保存。入力すると3秒後に自動保存</span>
         </div>
         <div class="spacer"></div>
@@ -849,7 +874,7 @@
     const editor = $('#editor');
     const chatInput = document.getElementById('chatInput');
     const chatSend = document.getElementById('chatSend');
-    const chatModeToggle = $('#chatModeToggle');
+    const btnChatMode = $('#btnChatMode');
     const chatReply = $('#chatReply');
     const btnImageTemplate = $('#btnImageTemplate');
     const btnUseNoteBase = $('#btnUseNoteBase');
@@ -1938,9 +1963,9 @@
       return reply;
     }
     function applyChatModeUI() {
-      if (chatModeToggle) chatModeToggle.checked = !!chatModeEnabled;
       if (chatInput) chatInput.placeholder = chatModeEnabled ? '思ったことを1行ずつ書く' : 'ここに1行入力してEnterで追記';
       if (chatSend) chatSend.textContent = chatModeEnabled ? '送る' : '追加';
+      if (btnChatMode) btnChatMode.classList.toggle('active', !!chatModeEnabled);
       if (chatModeEnabled) showChatGreeting(true);
       else setChatReply('');
     }
@@ -2801,8 +2826,8 @@
       });
     }
     if (chatSend) chatSend.onclick = () => { appendChatLine(chatInput && chatInput.value); if (chatInput) { chatInput.value = ''; try { chatInput.focus(); } catch {} } };
-    if (chatModeToggle) chatModeToggle.onchange = () => {
-      chatModeEnabled = !!chatModeToggle.checked;
+    if (btnChatMode) btnChatMode.onclick = () => {
+      chatModeEnabled = !chatModeEnabled;
       try { localStorage.setItem(CHAT_MODE_KEY, chatModeEnabled ? '1' : '0'); } catch {}
       applyChatModeUI();
       if (chatModeEnabled) {
