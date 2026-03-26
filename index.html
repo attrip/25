@@ -206,6 +206,21 @@
     #chatRow { display: flex; gap: 12px; align-items: center; flex-wrap: nowrap; width: 100%; }
     #chatSend { flex: none; }
     #chatInput { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 12px 14px; border-radius: 12px; font-size: 20px; line-height: 1.8; flex: 1 1 auto; min-width: 0; }
+    .chat-mode-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .chat-mode-toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+    .chat-reply {
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(148, 163, 184, 0.08);
+      color: var(--fg);
+      border-radius: 14px;
+      padding: 12px 14px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    .chat-reply.is-hidden { display: none; }
     .prompt-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .prompt-row input { appearance: none; border: 1px solid var(--border); background: rgba(148,163,184,0.08); color: var(--fg); padding: 10px 12px; border-radius: 12px; font-size: 14px; flex: 1 1 320px; min-width: 220px; }
     .image-board { border: 1px solid var(--border); border-radius: 16px; background: rgba(148,163,184,0.04); padding: 14px; }
@@ -528,6 +543,13 @@
         <div class="spacer"></div>
         <textarea id="editor" placeholder="そのまま入力、または「🎤 話して入力」でスタート。内容は自動保存されます。"></textarea>
         <div class="spacer"></div>
+        <div class="chat-mode-bar">
+          <label class="chat-mode-toggle"><input type="checkbox" id="chatModeToggle" /> チャットモード</label>
+          <span id="chatModeHint" class="muted">オンにすると相づちだけ返します</span>
+        </div>
+        <div class="spacer"></div>
+        <div id="chatReply" class="chat-reply is-hidden" aria-live="polite"></div>
+        <div class="spacer"></div>
         <div class="row" id="chatRow">
           <input id="chatInput" type="text" placeholder="ここに1行入力してEnterで追記" />
           <button id="chatSend" class="primary">追加</button>
@@ -827,6 +849,8 @@
     const editor = $('#editor');
     const chatInput = document.getElementById('chatInput');
     const chatSend = document.getElementById('chatSend');
+    const chatModeToggle = $('#chatModeToggle');
+    const chatReply = $('#chatReply');
     const btnImageTemplate = $('#btnImageTemplate');
     const btnUseNoteBase = $('#btnUseNoteBase');
     const btnUsePlainBase = $('#btnUsePlainBase');
@@ -1890,6 +1914,36 @@
     
     // チャット入力 → 本文追記
     let chatComposing = false;
+    const CHAT_MODE_KEY = 'focus_chat_mode_v1';
+    const chatReplies = ['うん。', 'そうなんだ。', 'いいね。', 'なるほど。', 'それで？', 'うんうん。', 'そうか。'];
+    let chatReplyIndex = 0;
+    let chatModeEnabled = (() => { try { return localStorage.getItem(CHAT_MODE_KEY) === '1'; } catch { return false; } })();
+    function setChatReply(text) {
+      if (!chatReply) return;
+      const next = String(text || '').trim();
+      chatReply.textContent = next;
+      chatReply.classList.toggle('is-hidden', !next);
+    }
+    function showChatGreeting(force = false) {
+      if (!chatModeEnabled) {
+        setChatReply('');
+        return;
+      }
+      if (!force && chatReply && chatReply.textContent.trim()) return;
+      setChatReply('どうした？');
+    }
+    function getNextChatReply() {
+      const reply = chatReplies[chatReplyIndex % chatReplies.length];
+      chatReplyIndex += 1;
+      return reply;
+    }
+    function applyChatModeUI() {
+      if (chatModeToggle) chatModeToggle.checked = !!chatModeEnabled;
+      if (chatInput) chatInput.placeholder = chatModeEnabled ? '思ったことを1行ずつ書く' : 'ここに1行入力してEnterで追記';
+      if (chatSend) chatSend.textContent = chatModeEnabled ? '送る' : '追加';
+      if (chatModeEnabled) showChatGreeting(true);
+      else setChatReply('');
+    }
     function appendChatLine(text) {
       const t = String(text || '').trim();
       if (!t) return;
@@ -1904,6 +1958,7 @@
         hideCoach();
         updateFocusFromEditor(true);
         updateMetrics(Date.now());
+        if (chatModeEnabled) setChatReply(getNextChatReply());
       } catch {}
     }
     function updateMetrics(nowTs = Date.now()) {
@@ -2307,6 +2362,7 @@
       if (deferEditorFocus) setTimeout(focusEditor, 40);
       else focusEditor();
       updateFocusFromEditor(true);
+      showChatGreeting(true);
       if (goal) {
         const cleanupStart = Date.now();
         setTimeout(() => {
@@ -2745,6 +2801,15 @@
       });
     }
     if (chatSend) chatSend.onclick = () => { appendChatLine(chatInput && chatInput.value); if (chatInput) { chatInput.value = ''; try { chatInput.focus(); } catch {} } };
+    if (chatModeToggle) chatModeToggle.onchange = () => {
+      chatModeEnabled = !!chatModeToggle.checked;
+      try { localStorage.setItem(CHAT_MODE_KEY, chatModeEnabled ? '1' : '0'); } catch {}
+      applyChatModeUI();
+      if (chatModeEnabled) {
+        try { chatInput && chatInput.focus(); } catch {}
+      }
+    };
+    applyChatModeUI();
     updateMicUI();
 
     // Mic quick-start helpers
