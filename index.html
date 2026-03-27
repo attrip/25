@@ -236,6 +236,8 @@
     .compare-card button { width: 100%; }
     .compare-empty { color: var(--muted); font-size: 13px; }
     .stock-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .section-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .is-collapsed { display: none !important; }
     .stock-card {
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -298,6 +300,7 @@
       font-size: 14px;
     }
     .image-controls textarea { min-height: 96px; resize: vertical; }
+    .overlay-text-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .image-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .image-toolbar label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
     .image-toolbar input[type="range"] { accent-color: var(--accent); }
@@ -475,14 +478,20 @@
     body.body-fullscreen #screen-work,
     body.body-fullscreen #screen-work .card {
       height: 100%;
-      padding: 0;
+      padding: 16px;
       border: none;
       border-radius: 0;
     }
+    body.body-fullscreen #screen-work .card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-sizing: border-box;
+    }
     body.body-fullscreen #editor {
-      height: 100vh;
-      border-radius: 0;
-      border: none;
+      flex: 1 1 auto;
+      min-height: 0;
+      height: auto;
       font-size: 20px; /* Increase font size in fullscreen */
     }
     body.body-fullscreen #chatRow,
@@ -490,41 +499,20 @@
       display: flex !important;
     }
     body.body-fullscreen #chatRow {
-      position: fixed;
-      left: 16px;
-      right: 16px;
-      bottom: 16px;
-      z-index: 20;
-      padding: 12px;
-      border-radius: 16px;
-      background: rgba(11, 19, 34, 0.88);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-    }
-    body.body-fullscreen #chatReply {
-      position: fixed;
-      left: 16px;
-      right: 16px;
-      z-index: 20;
-    }
-    body.body-fullscreen #chatReply {
-      bottom: 96px;
-      min-height: 0;
+      width: 100%;
     }
     body.body-fullscreen #workActions {
       display: flex !important;
-      position: fixed;
-      top: 16px;
-      right: 16px;
-      left: auto;
-      z-index: 30;
+      position: static;
       gap: 8px;
       flex-wrap: nowrap;
-      padding: 10px;
-      border-radius: 16px;
-      background: rgba(11, 19, 34, 0.72);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      justify-content: flex-end;
+      margin-left: auto;
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
     }
     body.body-fullscreen #workActions > :not(#btnFullscreen):not(#btnChatMode) {
       display: none !important;
@@ -639,8 +627,9 @@
               <input id="imageBackgroundInput" type="file" accept="image/*" />
               <span id="imageBackgroundStatus" class="file-status">未選択</span>
             </div>
-            <div class="file-row">
+            <div class="section-toggle-row">
               <div class="file-status">ストックした画像はここから選び直せます。</div>
+              <button id="btnToggleImageStock" type="button">たたむ</button>
             </div>
             <div id="imageStockGrid" class="stock-grid"></div>
             <div id="imageStockEmpty" class="compare-empty">画像を選ぶと、背景ストックとして残ります。</div>
@@ -652,6 +641,14 @@
             <div id="compareGrid" class="compare-grid"></div>
             <div id="compareEmpty" class="compare-empty">候補画像を3枚まで入れると、文字を載せた状態で比較できます。</div>
             <textarea id="overlayTextInput" placeholder="重ねる文字"></textarea>
+            <div class="overlay-text-tools">
+              <label>サイズ
+                <span class="size-control">
+                  <input id="overlayFontSize" type="range" min="40" max="180" step="2" value="88" />
+                  <input id="overlayFontSizeNumber" type="number" min="40" max="180" step="2" value="88" />
+                </span>
+              </label>
+            </div>
             <div class="image-toolbar">
               <label>フォント
                 <select id="overlayFontFamily">
@@ -697,12 +694,6 @@
                 <input id="annotationColor" type="color" value="#ff3b30" />
               </label>
               <button id="btnClearAnnotations">注釈クリア</button>
-              <label>サイズ
-                <span class="size-control">
-                  <input id="overlayFontSize" type="range" min="40" max="180" step="2" value="88" />
-                  <input id="overlayFontSizeNumber" type="number" min="40" max="180" step="2" value="88" />
-                </span>
-              </label>
               <button id="btnPickExportDir">保存先</button>
               <button id="btnExportJpeg">JPEG書き出し</button>
             </div>
