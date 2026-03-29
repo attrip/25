@@ -229,7 +229,21 @@
     .image-board { border: 1px solid var(--border); border-radius: 16px; background: rgba(148,163,184,0.04); padding: 14px; }
     .image-stage { border-radius: 14px; overflow: hidden; border: 1px solid rgba(148,163,184,0.18); background: #d9d9d9; }
     .image-stage canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; }
-    .image-controls { display: grid; gap: 10px; margin-top: 12px; }
+    .image-controls { display: grid; gap: 14px; margin-top: 12px; }
+    .image-section {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid rgba(148,163,184,0.14);
+      border-radius: 16px;
+      background: rgba(148,163,184,0.04);
+    }
+    .image-section-title {
+      font-size: 12px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
     .compare-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     .compare-card { border: 1px solid var(--border); border-radius: 14px; background: rgba(148,163,184,0.05); padding: 10px; display: grid; gap: 8px; }
     .compare-card canvas { width: 100%; height: auto; border-radius: 10px; border: 1px solid rgba(148,163,184,0.16); background: #d9d9d9; }
@@ -301,6 +315,7 @@
     }
     .image-controls textarea { min-height: 96px; resize: vertical; }
     .overlay-text-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .overlay-text-tools label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
     .image-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .image-toolbar label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
     .image-toolbar input[type="range"] { accent-color: var(--accent); }
@@ -620,84 +635,98 @@
             <canvas id="imageCanvas" width="1600" height="900" tabindex="0"></canvas>
           </div>
           <div class="image-controls">
-            <div class="file-row">
-              <button id="btnUseNoteBase">ノートを使う</button>
-              <button id="btnUsePlainBase">なし</button>
-              <label for="imageBackgroundInput" class="button-like">🖼 画像を選ぶ</label>
-              <input id="imageBackgroundInput" type="file" accept="image/*" />
-              <span id="imageBackgroundStatus" class="file-status">未選択</span>
+            <div class="image-section">
+              <div class="image-section-title">背景</div>
+              <div class="file-row">
+                <button id="btnUseNoteBase">ノートを使う</button>
+                <button id="btnUsePlainBase">なし</button>
+                <label for="imageBackgroundInput" class="button-like">🖼 画像を選ぶ</label>
+                <input id="imageBackgroundInput" type="file" accept="image/*" />
+                <span id="imageBackgroundStatus" class="file-status">未選択</span>
+              </div>
+              <div class="section-toggle-row">
+                <div class="file-status">ストックした画像はここから選び直せます。</div>
+                <button id="btnToggleImageStock" type="button">たたむ</button>
+              </div>
+              <div id="imageStockGrid" class="stock-grid"></div>
+              <div id="imageStockEmpty" class="compare-empty">画像を選ぶと、背景ストックとして残ります。</div>
+              <div class="file-row">
+                <label for="compareCandidatesInput" class="button-like">🖼 候補画像を3枚選ぶ</label>
+                <input id="compareCandidatesInput" type="file" accept="image/*" multiple />
+                <span class="file-status">文字を載せた3案で比較</span>
+              </div>
+              <div id="compareGrid" class="compare-grid"></div>
+              <div id="compareEmpty" class="compare-empty">候補画像を3枚まで入れると、文字を載せた状態で比較できます。</div>
             </div>
-            <div class="section-toggle-row">
-              <div class="file-status">ストックした画像はここから選び直せます。</div>
-              <button id="btnToggleImageStock" type="button">たたむ</button>
+            <div class="image-section">
+              <div class="image-section-title">文字</div>
+              <textarea id="overlayTextInput" placeholder="重ねる文字"></textarea>
+              <div class="overlay-text-tools">
+                <label>サイズ
+                  <span class="size-control">
+                    <input id="overlayFontSize" type="range" min="40" max="180" step="2" value="88" />
+                    <input id="overlayFontSizeNumber" type="number" min="40" max="180" step="2" value="88" />
+                  </span>
+                </label>
+                <label>フォント
+                  <select id="overlayFontFamily">
+                    <option value="Noto Sans JP" selected>Noto Sans JP</option>
+                    <option value="Zen Kaku Gothic New">Zen Kaku Gothic</option>
+                    <option value="Shippori Mincho">Shippori Mincho</option>
+                    <option value="BIZ UDGothic">BIZ UDGothic</option>
+                    <option value="M PLUS 1p">M PLUS 1p</option>
+                    <option value="Kosugi Maru">Kosugi Maru</option>
+                  </select>
+                </label>
+                <input id="customFontInput" type="file" accept=".ttf,.otf,.woff,.woff2" />
+                <label>位置
+                  <select id="overlayPosition">
+                    <option value="top">上</option>
+                    <option value="center" selected>中央</option>
+                    <option value="bottom">下</option>
+                  </select>
+                </label>
+                <label>帯
+                  <select id="overlayBandStyle">
+                    <option value="none" selected>なし</option>
+                    <option value="soft">うすく</option>
+                    <option value="solid">しっかり</option>
+                  </select>
+                </label>
+              </div>
             </div>
-            <div id="imageStockGrid" class="stock-grid"></div>
-            <div id="imageStockEmpty" class="compare-empty">画像を選ぶと、背景ストックとして残ります。</div>
-            <div class="file-row">
-              <label for="compareCandidatesInput" class="button-like">🖼 候補画像を3枚選ぶ</label>
-              <input id="compareCandidatesInput" type="file" accept="image/*" multiple />
-              <span class="file-status">文字を載せた3案で比較</span>
+            <div class="image-section">
+              <div class="image-section-title">仕上げ</div>
+              <div class="image-toolbar">
+                <label>比率
+                  <select id="canvasAspect">
+                    <option value="16:9" selected>横</option>
+                    <option value="1:1">正方形</option>
+                    <option value="4:5">縦長</option>
+                  </select>
+                </label>
+                <label>白フィルタ
+                  <select id="imageWashStyle">
+                    <option value="on" selected>あり</option>
+                    <option value="off">なし</option>
+                  </select>
+                </label>
+                <button id="toolPen" class="tool-chip">ペン</button>
+                <button id="toolArrow" class="tool-chip">矢印</button>
+                <label>注釈色
+                  <input id="annotationColor" type="color" value="#ff3b30" />
+                </label>
+                <button id="btnClearAnnotations">注釈クリア</button>
+              </div>
             </div>
-            <div id="compareGrid" class="compare-grid"></div>
-            <div id="compareEmpty" class="compare-empty">候補画像を3枚まで入れると、文字を載せた状態で比較できます。</div>
-            <textarea id="overlayTextInput" placeholder="重ねる文字"></textarea>
-            <div class="overlay-text-tools">
-              <label>サイズ
-                <span class="size-control">
-                  <input id="overlayFontSize" type="range" min="40" max="180" step="2" value="88" />
-                  <input id="overlayFontSizeNumber" type="number" min="40" max="180" step="2" value="88" />
-                </span>
-              </label>
+            <div class="image-section">
+              <div class="image-section-title">書き出し</div>
+              <div class="image-toolbar">
+                <button id="btnPickExportDir">保存先</button>
+                <button id="btnExportJpeg">JPEG書き出し</button>
+              </div>
+              <div id="exportDirStatus" class="muted">保存先未選択</div>
             </div>
-            <div class="image-toolbar">
-              <label>フォント
-                <select id="overlayFontFamily">
-                  <option value="Noto Sans JP" selected>Noto Sans JP</option>
-                  <option value="Zen Kaku Gothic New">Zen Kaku Gothic</option>
-                  <option value="Shippori Mincho">Shippori Mincho</option>
-                  <option value="BIZ UDGothic">BIZ UDGothic</option>
-                  <option value="M PLUS 1p">M PLUS 1p</option>
-                  <option value="Kosugi Maru">Kosugi Maru</option>
-                </select>
-              </label>
-              <input id="customFontInput" type="file" accept=".ttf,.otf,.woff,.woff2" />
-              <label>比率
-                <select id="canvasAspect">
-                  <option value="16:9" selected>横</option>
-                  <option value="1:1">正方形</option>
-                  <option value="4:5">縦長</option>
-                </select>
-              </label>
-              <label>位置
-                <select id="overlayPosition">
-                  <option value="top">上</option>
-                  <option value="center" selected>中央</option>
-                  <option value="bottom">下</option>
-                </select>
-              </label>
-              <label>帯
-                <select id="overlayBandStyle">
-                  <option value="none" selected>なし</option>
-                  <option value="soft">うすく</option>
-                  <option value="solid">しっかり</option>
-                </select>
-              </label>
-              <label>白フィルタ
-                <select id="imageWashStyle">
-                  <option value="on" selected>あり</option>
-                  <option value="off">なし</option>
-                </select>
-              </label>
-              <button id="toolPen" class="tool-chip">ペン</button>
-              <button id="toolArrow" class="tool-chip">矢印</button>
-              <label>注釈色
-                <input id="annotationColor" type="color" value="#ff3b30" />
-              </label>
-              <button id="btnClearAnnotations">注釈クリア</button>
-              <button id="btnPickExportDir">保存先</button>
-              <button id="btnExportJpeg">JPEG書き出し</button>
-            </div>
-            <div id="exportDirStatus" class="muted">保存先未選択</div>
             <div class="spacer"></div>
             <button id="btnCopyBottom" class="primary copy-btn">📋 コピー</button>
           </div>
@@ -901,6 +930,7 @@
     const compareGrid = $('#compareGrid');
     const compareEmpty = $('#compareEmpty');
     const imageBackgroundStatus = $('#imageBackgroundStatus');
+    const btnToggleImageStock = $('#btnToggleImageStock');
     const imageStockGrid = $('#imageStockGrid');
     const imageStockEmpty = $('#imageStockEmpty');
     const overlayTextInput = $('#overlayTextInput');
@@ -962,7 +992,9 @@
     const annotationRedoStack = [];
     const IMAGE_STOCK_DB = 'focus_image_stock_v1';
     const IMAGE_STOCK_STORE = 'images';
+    const IMAGE_STOCK_COLLAPSED_KEY = 'focus_image_stock_collapsed_v1';
     const SESS_KEY = 'focus_sessions_v1';
+    let imageStockCollapsed = (() => { try { return localStorage.getItem(IMAGE_STOCK_COLLAPSED_KEY) === '1'; } catch { return false; } })();
     let coachRotateId = null;
     let coachShownAt = 0;
     const IDLE_MS = 12000; // 12s 無操作で表示
@@ -1687,6 +1719,12 @@
         card.appendChild(actions);
         imageStockGrid.appendChild(card);
       });
+      applyImageStockVisibility();
+    }
+    function applyImageStockVisibility() {
+      if (imageStockGrid) imageStockGrid.classList.toggle('is-collapsed', imageStockCollapsed);
+      if (imageStockEmpty) imageStockEmpty.classList.toggle('is-collapsed', imageStockCollapsed);
+      if (btnToggleImageStock) btnToggleImageStock.textContent = imageStockCollapsed ? 'ひらく' : 'たたむ';
     }
     async function saveImageFileToStock(file) {
       if (!file || !file.type || !file.type.startsWith('image/')) return;
@@ -2487,6 +2525,12 @@
       annotationDraft = null;
       renderImageCanvas();
     };
+    if (btnToggleImageStock) btnToggleImageStock.onclick = () => {
+      imageStockCollapsed = !imageStockCollapsed;
+      try { localStorage.setItem(IMAGE_STOCK_COLLAPSED_KEY, imageStockCollapsed ? '1' : '0'); } catch {}
+      applyImageStockVisibility();
+    };
+    applyImageStockVisibility();
     function syncOverlayFontSize(source) {
       const raw = parseInt(source && source.value || '88', 10);
       const next = Math.max(40, Math.min(180, Number.isFinite(raw) ? raw : 88));
